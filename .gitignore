@@ -1,0 +1,60 @@
+# General
+HELP.md
+.gitattributes  # Ignore .gitattributes if not needed
+
+# Build artifacts
+/target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# Logs
+*.log
+
+# IDE-Specific Files
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### VS Code ###
+.vscode/
+
+# Maven Wrapper
+/mvnw          # Ignore Maven wrapper script (Unix)
+/mvnw.cmd      # Ignore Maven wrapper script (Windows)
+/.mvn/         # Ignore Maven wrapper folder
+
+# Operating System-Specific Files
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# Linux
+*~
+
+# Temporary Files
+*.tmp
+*.bak
