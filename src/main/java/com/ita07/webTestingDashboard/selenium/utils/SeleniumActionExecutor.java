@@ -79,18 +79,11 @@ public class SeleniumActionExecutor {
     }
 
     private void executeScrollAction(Map<String, Object> action) {
-        Map<String, String> scrollLocator = (Map<String, String>) action.get("locator");
-        if (scrollLocator != null) {
-            // Scroll to an element
-            By by = getLocator(scrollLocator);
-            WebElement scrollElement = SeleniumUtils.waitForElementVisible(driver, by, DEFAULT_TIMEOUT);
-            SeleniumUtils.scrollToElement(driver, scrollElement);
-        } else {
-            // Scroll to a specific position
-            int x = (int) action.getOrDefault("x", 0);
-            int y = (int) action.getOrDefault("y", 0);
-            SeleniumUtils.scrollToPosition(driver, x, y);
-        }
+        Map<String, String> scrollLocator = getLocatorFromAction(action);
+        // Scroll to an element
+        By by = getLocator(scrollLocator);
+        WebElement scrollElement = SeleniumUtils.waitForElementVisible(driver, by, DEFAULT_TIMEOUT);
+        SeleniumUtils.scrollToElement(driver, scrollElement);
     }
 
     private void executeUploadAction(Map<String, Object> action) {
