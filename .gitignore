@@ -40,11 +40,6 @@ build/
 ### VS Code ###
 .vscode/
 
-# Maven Wrapper
-/mvnw          # Ignore Maven wrapper script (Unix)
-/mvnw.cmd      # Ignore Maven wrapper script (Windows)
-/.mvn/         # Ignore Maven wrapper folder
-
 # Operating System-Specific Files
 # macOS
 .DS_Store
@@ -58,3 +53,9 @@ Thumbs.db
 # Temporary Files
 *.tmp
 *.bak
+/.gitattributes
+
+# Maven Wrapper
+/.mvn/wrapper/maven-wrapper.properties
+/mvnw
+/mvnw.cmd
