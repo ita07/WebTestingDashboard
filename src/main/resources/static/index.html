@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Selenium Automation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f9f9f9;
+        }
+        h1 {
+            color: #333;
+        }
+        .block {
+            display: inline-block;
+            padding: 10px;
+            margin: 5px;
+            background-color: #007bff;
+            color: white;
+            border-radius: 4px;
+            cursor: grab;
+            user-select: none;
+        }
+        .block:hover {
+            background-color: #0056b3;
+        }
+        .workspace {
+            width: 100%;
+            min-height: 150px;
+            border: 2px dashed #ccc;
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #fff;
+        }
+        .workspace .block {
+            background-color: #28a745;
+            margin: 5px 0;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #results {
+            margin-top: 20px;
+            padding: 10px;
+            background: #ffffff;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 14px;
+            min-height: 100px;
+        }
+        .json-preview {
+            margin-top: 20px;
+            width: 100%;
+            height: 150px;
+            font-family: monospace;
+            font-size: 14px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            resize: vertical;
+        }
+        .error-message {
+            color: red;
+            margin-top: 10px;
+        }
+        #resultsTable {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        #resultsTable th, #resultsTable td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: left;
+        }
+        #resultsTable th {
+            background-color: #f2f2f2;
+        }
+        #resultsTable .success {
+            color: green;
+        }
+        #resultsTable .failure {
+            color: red;
+        }
+    </style>
+</head>
+<body>
+<h1>Selenium Automation</h1>
+
+<!-- Available Actions -->
+<div>
+    <h3>Available Actions</h3>
+    <div id="actionBlocks">
+        <div class="block" draggable="true" data-action="navigate">Navigate</div>
+        <div class="block" draggable="true" data-action="click">Click</div>
+        <div class="block" draggable="true" data-action="type">Type</div>
+        <div class="block" draggable="true" data-action="wait">Wait</div>
+        <div class="block" draggable="true" data-action="select">Select</div>
+        <div class="block" draggable="true" data-action="check">Check</div>
+        <div class="block" draggable="true" data-action="uncheck">Uncheck</div>
+        <div class="block" draggable="true" data-action="hover">Hover</div>
+        <div class="block" draggable="true" data-action="scroll">Scroll</div>
+        <div class="block" draggable="true" data-action="upload">Upload</div>
+        <div class="block" draggable="true" data-action="assert">Assert</div>
+        <div class="block" draggable="true" data-action="doubleclick">DoubleClick</div>
+        <div class="block" draggable="true" data-action="draganddrop">DragAndDrop</div>
+    </div>
+</div>
+
+<!-- Workspace -->
+<h3>Workspace</h3>
+<div id="workspace" class="workspace"></div>
+
+<!-- JSON Preview -->
+<h3>Generated JSON</h3>
+<textarea id="jsonPreview" class="json-preview" placeholder="JSON will appear here..."></textarea>
+<button onclick="validateJson()">Validate JSON</button>
+<div id="errorMessage" class="error-message"></div>
+
+<!-- Run Tests Button -->
+<button id="runTestsButton" onclick="runTests()" disabled>Run Tests</button>
+
+<!-- Results -->
+<h2>Results:</h2>
+<pre id="results"></pre>
+
+<script>
+    // Track blocks in the workspace
+    let workspaceBlocks = [];
+    let isValidJson = false;
+
+    // Add event listeners for drag-and-drop
+    document.addEventListener('DOMContentLoaded', () => {
+        const actionBlocks = document.querySelectorAll('#actionBlocks .block');
+        const workspace = document.getElementById('workspace');
+
+        // Handle drag start
+        actionBlocks.forEach(block => {
+            block.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('text/plain', e.target.dataset.action);
+            });
+        });
+
+        // Handle drag over
+        workspace.addEventListener('dragover', (e) => {
+            e.preventDefault();
+        });
+
+        // Handle drop
+        workspace.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const action = e.dataTransfer.getData('text/plain');
+            const newBlock = createWorkspaceBlock(action);
+            workspace.appendChild(newBlock);
+
+            // Update JSON preview
+            updateJsonPreview();
+
+            // Add block to workspaceBlocks array
+            workspaceBlocks.push({ action });
+        });
+    });
+
+    // Create a block in the workspace
+    function createWorkspaceBlock(action) {
+        const block = document.createElement('div');
+        block.className = 'block';
+        block.textContent = action.charAt(0).toUpperCase() + action.slice(1); // Capitalize first letter
+
+        // Add a remove button
+        const removeButton = document.createElement('button');
+        removeButton.textContent = 'X';
+        removeButton.style.marginLeft = '10px';
+        removeButton.style.padding = '2px 5px';
+        removeButton.style.backgroundColor = 'red';
+        removeButton.style.color = 'white';
+        removeButton.style.border = 'none';
+        removeButton.style.borderRadius = '3px';
+        removeButton.style.cursor = 'pointer';
+        removeButton.onclick = function() {
+            block.remove();
+            updateJsonPreview(); // Update JSON when a block is removed
+        };
+        block.appendChild(removeButton);
+
+        // Add fields based on action type
+        if (action === 'navigate') {
+            const urlInput = document.createElement('input');
+            urlInput.type = 'text';
+            urlInput.placeholder = 'URL';
+            urlInput.oninput = updateJsonPreview;
+            block.appendChild(urlInput);
+        } else if (action === 'click' || action === 'type' || action === 'check' || action === 'uncheck' || action === 'hover' || action === 'scroll' || action === 'doubleclick') {
+            const locatorTypeInput = document.createElement('input');
+            locatorTypeInput.type = 'text';
+            locatorTypeInput.placeholder = 'Locator Type (e.g., id)';
+            locatorTypeInput.oninput = updateJsonPreview;
+            block.appendChild(locatorTypeInput);
+
+            const locatorValueInput = document.createElement('input');
+            locatorValueInput.type = 'text';
+            locatorValueInput.placeholder = 'Locator Value';
+            locatorValueInput.oninput = updateJsonPreview;
+            block.appendChild(locatorValueInput);
+
+            if (action === 'type') {
+                const textInput = document.createElement('input');
+                textInput.type = 'text';
+                textInput.placeholder = 'Text';
+                textInput.oninput = updateJsonPreview;
+                block.appendChild(textInput);
+            }
+        } else if (action === 'wait') {
+            const secondsInput = document.createElement('input');
+            secondsInput.type = 'number';
+            secondsInput.placeholder = 'Seconds';
+            secondsInput.min = '0';
+            secondsInput.oninput = updateJsonPreview;
+            block.appendChild(secondsInput);
+        } else if (action === 'select') {
+            const locatorTypeInput = document.createElement('input');
+            locatorTypeInput.type = 'text';
+            locatorTypeInput.placeholder = 'Locator Type (e.g., id)';
+            locatorTypeInput.oninput = updateJsonPreview;
+            block.appendChild(locatorTypeInput);
+
+            const locatorValueInput = document.createElement('input');
+            locatorValueInput.type = 'text';
+            locatorValueInput.placeholder = 'Locator Value';
+            locatorValueInput.oninput = updateJsonPreview;
+            block.appendChild(locatorValueInput);
+
+            const selectByInput = document.createElement('input');
+            selectByInput.type = 'text';
+            selectByInput.placeholder = 'Select By (value, visibleText, index)';
+            selectByInput.oninput = updateJsonPreview;
+            block.appendChild(selectByInput);
+
+            const optionInput = document.createElement('input');
+            optionInput.type = 'text';
+            optionInput.placeholder = 'Option';
+            optionInput.oninput = updateJsonPreview;
+            block.appendChild(optionInput);
+        } else if (action === 'upload') {
+            const locatorTypeInput = document.createElement('input');
+            locatorTypeInput.type = 'text';
+            locatorTypeInput.placeholder = 'Locator Type (e.g., id)';
+            locatorTypeInput.oninput = updateJsonPreview;
+            block.appendChild(locatorTypeInput);
+
+            const locatorValueInput = document.createElement('input');
+            locatorValueInput.type = 'text';
+            locatorValueInput.placeholder = 'Locator Value';
+            locatorValueInput.oninput = updateJsonPreview;
+            block.appendChild(locatorValueInput);
+
+            const filePathInput = document.createElement('input');
+            filePathInput.type = 'text';
+            filePathInput.placeholder = 'File Path';
+            filePathInput.oninput = updateJsonPreview;
+            block.appendChild(filePathInput);
+        } else if (action === 'assert') {
+            const conditionInput = document.createElement('input');
+            conditionInput.type = 'text';
+            conditionInput.placeholder = 'Condition (text, title, elementPresent, etc.)';
+            conditionInput.oninput = updateJsonPreview;
+            block.appendChild(conditionInput);
+
+            const locatorTypeInput = document.createElement('input');
+            locatorTypeInput.type = 'text';
+            locatorTypeInput.placeholder = 'Locator Type (optional)';
+            locatorTypeInput.oninput = updateJsonPreview;
+            block.appendChild(locatorTypeInput);
+
+            const locatorValueInput = document.createElement('input');
+            locatorValueInput.type = 'text';
+            locatorValueInput.placeholder = 'Locator Value (optional)';
+            locatorValueInput.oninput = updateJsonPreview;
+            block.appendChild(locatorValueInput);
+
+            const expectedInput = document.createElement('input');
+            expectedInput.type = 'text';
+            expectedInput.placeholder = 'Expected (optional)';
+            expectedInput.oninput = updateJsonPreview;
+            block.appendChild(expectedInput);
+
+            const attributeInput = document.createElement('input');
+            attributeInput.type = 'text';
+            attributeInput.placeholder = 'Attribute (optional)';
+            attributeInput.oninput = updateJsonPreview;
+            block.appendChild(attributeInput);
+        } else if (action === 'draganddrop') {
+            const sourceLocatorTypeInput = document.createElement('input');
+            sourceLocatorTypeInput.type = 'text';
+            sourceLocatorTypeInput.placeholder = 'Source Locator Type (e.g., id)';
+            sourceLocatorTypeInput.oninput = updateJsonPreview;
+            block.appendChild(sourceLocatorTypeInput);
+
+            const sourceLocatorValueInput = document.createElement('input');
+            sourceLocatorValueInput.type = 'text';
+            sourceLocatorValueInput.placeholder = 'Source Locator Value';
+            sourceLocatorValueInput.oninput = updateJsonPreview;
+            block.appendChild(sourceLocatorValueInput);
+
+            const targetLocatorTypeInput = document.createElement('input');
+            targetLocatorTypeInput.type = 'text';
+            targetLocatorTypeInput.placeholder = 'Target Locator Type (e.g., id)';
+            targetLocatorTypeInput.oninput = updateJsonPreview;
+            block.appendChild(targetLocatorTypeInput);
+
+            const targetLocatorValueInput = document.createElement('input');
+            targetLocatorValueInput.type = 'text';
+            targetLocatorValueInput.placeholder = 'Target Locator Value';
+            targetLocatorValueInput.oninput = updateJsonPreview;
+            block.appendChild(targetLocatorValueInput);
+        }
+
+        return block;
+    }
+
+    // Generate JSON from workspace blocks
+    function getActionsFromWorkspace() {
+        const blocks = document.querySelectorAll('#workspace .block');
+        const actions = [];
+
+        blocks.forEach(block => {
+            // Ensure we only get the text of the action itself, not the remove button or input placeholders
+            const actionTextNode = block.firstChild;
+            const action = actionTextNode && actionTextNode.nodeType === Node.TEXT_NODE
+                           ? actionTextNode.textContent.trim().toLowerCase()
+                           : block.dataset.action; // Fallback if firstChild isn't the expected text node
+
+            const inputs = block.querySelectorAll('input');
+            const actionData = { action };
+
+            if (action === 'navigate') {
+                actionData.url = inputs[0].value;
+            } else if (action === 'click' || action === 'type' || action === 'check' || action === 'uncheck' || action === 'hover' || action === 'scroll' || action === 'doubleclick') {
+                actionData.locator = {
+                    type: inputs[0].value,
+                    value: inputs[1].value
+                };
+                if (action === 'type') {
+                    actionData.text = inputs[2].value;
+                }
+            } else if (action === 'wait') {
+                actionData.seconds = inputs[0].value;
+            } else if (action === 'select') {
+                actionData.locator = {
+                    type: inputs[0].value,
+                    value: inputs[1].value
+                };
+                actionData.selectBy = inputs[2].value;
+                actionData.option = inputs[3].value;
+            } else if (action === 'upload') {
+                actionData.locator = {
+                    type: inputs[0].value,
+                    value: inputs[1].value
+                };
+                actionData.filePath = inputs[2].value;
+            } else if (action === 'assert') {
+                actionData.condition = inputs[0].value;
+                actionData.locator = {
+                    type: inputs[1].value,
+                    value: inputs[2].value
+                };
+                actionData.expected = inputs[3].value;
+                actionData.attribute = inputs[4].value;
+            } else if (action === 'draganddrop') {
+                actionData.sourceLocator = {
+                    type: inputs[0].value,
+                    value: inputs[1].value
+                };
+                actionData.targetLocator = {
+                    type: inputs[2].value,
+                    value: inputs[3].value
+                };
+            }
+
+            actions.push(actionData);
+        });
+
+        return actions;
+    }
+
+    // Update JSON preview to use the browser from the UI if present, else fallback to 'chrome'
+    function updateJsonPreview() {
+        const actions = getActionsFromWorkspace();
+        // Try to get browser from the JSON preview if user has edited it, else fallback to 'chrome'
+        let browser = 'chrome';
+        try {
+            const parsed = JSON.parse(document.getElementById('jsonPreview').value);
+            if (parsed.browser) browser = parsed.browser;
+        } catch (e) {}
+        const jsonPreview = document.getElementById('jsonPreview');
+        jsonPreview.value = JSON.stringify({ browser, actions }, null, 2);
+        isValidJson = false;
+        document.getElementById('runTestsButton').disabled = true;
+        document.getElementById('errorMessage').textContent = '';
+    }
+
+    // Validate JSON
+    function validateJson() {
+        const jsonPreview = document.getElementById('jsonPreview');
+        try {
+            const parsed = JSON.parse(jsonPreview.value); // Attempt to parse JSON
+            // Check that actions is an array
+            if (!parsed.actions || !Array.isArray(parsed.actions)) {
+                throw new Error('The root object must have an "actions" array property.');
+            }
+            isValidJson = true;
+            document.getElementById('runTestsButton').disabled = false; // Enable Run Tests button
+            document.getElementById('errorMessage').textContent = 'JSON is valid!';
+        } catch (error) {
+            isValidJson = false;
+            document.getElementById('runTestsButton').disabled = true; // Disable Run Tests button
+            document.getElementById('errorMessage').textContent = 'Invalid JSON: ' + error.message;
+        }
+    }
+
+    // Run tests
+    async function runTests() {
+        if (!isValidJson) {
+            alert('Please validate the JSON before running tests.');
+            return;
+        }
+
+        const jsonPreview = document.getElementById('jsonPreview');
+        const payload = JSON.parse(jsonPreview.value); // Now the full object
+        const resultsDiv = document.getElementById('results');
+
+        // Clear previous results
+        resultsDiv.textContent = 'Running tests...';
+
+        try {
+            // Send the JSON payload to the backend
+            const response = await fetch('/api/tests/run', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                // Try to parse the error response as JSON and show the error message
+                try {
+                    const errorData = await response.json();
+                    let errorMsg = `Error: ${response.status} ${response.statusText}`;
+                    if (errorData && errorData.message) {
+                        errorMsg += `\n${errorData.message}`;
+                    }
+                    resultsDiv.textContent = errorMsg;
+                } catch (e) {
+                    // If not JSON, just show the status
+                    resultsDiv.textContent = `Error: ${response.status} ${response.statusText}`;
+                }
+                return;
+            }
+
+            // Parse the response as JSON
+            const results = await response.json();
+            if (Array.isArray(results)) {
+                // Build a table of results
+                let html = '<table id="resultsTable">';
+                html += '<tr><th>Action</th><th>Status</th><th>Message</th><th>Screenshot</th></tr>'; // Added Screenshot header
+                results.forEach(r => {
+                    html += `<tr><td>${r.action}</td><td class="${r.status}">${r.status}</td><td>${r.message}</td>`;
+                    if (r.screenshotBase64) {
+                        // Provide a download link for the screenshot
+                        const fileName = `screenshot_${r.action}_${r.status}.png`;
+                        html += `<td><a href="data:image/png;base64,${r.screenshotBase64}" download="${fileName}">Download Screenshot</a></td>`;
+                    } else {
+                        html += '<td>N/A</td>';
+                    }
+                    html += '</tr>';
+                });
+                html += '</table>';
+                resultsDiv.innerHTML = html;
+            } else {
+                resultsDiv.textContent = JSON.stringify(results, null, 2);
+            }
+        } catch (error) {
+            resultsDiv.textContent = `Error: ${error.message}`;
+        }
+    }
+</script>
+</body>
+</html>
+
