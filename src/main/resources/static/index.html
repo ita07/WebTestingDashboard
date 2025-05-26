@@ -101,6 +101,33 @@
 <body>
 <h1>Selenium Automation</h1>
 
+<!-- Browser Options -->
+<div>
+    <h3>Browser Options</h3>
+    <form id="browserOptionsForm" style="margin-bottom: 20px;">
+        <label>Browser:
+            <select id="browserSelect">
+                <option value="chrome">Chrome</option>
+                <option value="firefox">Firefox</option>
+                <option value="edge">Edge</option>
+            </select>
+        </label>
+        <label><input type="checkbox" id="headless"> Headless</label>
+        <label>Window Size: <input type="text" id="windowSize" placeholder="e.g. 1280,800"></label>
+        <label>User Agent: <input type="text" id="userAgent" placeholder="Custom user agent"></label>
+        <label>Language: <input type="text" id="lang" placeholder="e.g. en"></label>
+        <label><input type="checkbox" id="incognito"> Incognito/Private</label>
+        <label><input type="checkbox" id="disableExtensions"> Disable Extensions</label>
+        <label><input type="checkbox" id="disableNotifications" checked> Disable Notifications</label>
+        <label><input type="checkbox" id="disableGpu" checked> Disable GPU</label>
+        <label><input type="checkbox" id="noSandbox" checked> No Sandbox</label>
+        <label><input type="checkbox" id="disableDevShmUsage" checked> Disable Dev Shm Usage</label>
+        <label>Proxy: <input type="text" id="proxy" placeholder="http://host:port"></label>
+        <label>Download Dir: <input type="text" id="downloadDir" placeholder="C:/Downloads"></label>
+        <label><input type="checkbox" id="blockCookies"> Block Cookies</label>
+    </form>
+</div>
+
 <!-- Available Actions -->
 <div>
     <h3>Available Actions</h3>
@@ -397,21 +424,81 @@
         return actions;
     }
 
-    // Update JSON preview to use the browser from the UI if present, else fallback to 'chrome'
+    // Collect browser options from the form
+    function getBrowserOptionsFromForm() {
+        return {
+            headless: document.getElementById('headless').checked,
+            windowSize: document.getElementById('windowSize').value,
+            userAgent: document.getElementById('userAgent').value,
+            lang: document.getElementById('lang').value,
+            incognito: document.getElementById('incognito').checked,
+            disableExtensions: document.getElementById('disableExtensions').checked,
+            disableNotifications: document.getElementById('disableNotifications').checked,
+            disableGpu: document.getElementById('disableGpu').checked,
+            noSandbox: document.getElementById('noSandbox').checked,
+            disableDevShmUsage: document.getElementById('disableDevShmUsage').checked,
+            proxy: document.getElementById('proxy').value,
+            downloadDir: document.getElementById('downloadDir').value,
+            blockCookies: document.getElementById('blockCookies').checked
+        };
+    }
+
+    // Update JSON preview to use the browser and browserOptions from the UI
     function updateJsonPreview() {
         const actions = getActionsFromWorkspace();
-        // Try to get browser from the JSON preview if user has edited it, else fallback to 'chrome'
-        let browser = 'chrome';
-        try {
-            const parsed = JSON.parse(document.getElementById('jsonPreview').value);
-            if (parsed.browser) browser = parsed.browser;
-        } catch (e) {}
+        const browser = document.getElementById('browserSelect').value;
+        const browserOptions = getBrowserOptionsFromForm();
         const jsonPreview = document.getElementById('jsonPreview');
-        jsonPreview.value = JSON.stringify({ browser, actions }, null, 2);
+        jsonPreview.value = JSON.stringify({ browser, browserOptions, actions }, null, 2);
         isValidJson = false;
         document.getElementById('runTestsButton').disabled = true;
         document.getElementById('errorMessage').textContent = '';
     }
+
+    // Add event listeners to browser options to update JSON preview on change
+    document.addEventListener('DOMContentLoaded', () => {
+        const actionBlocks = document.querySelectorAll('#actionBlocks .block');
+        const workspace = document.getElementById('workspace');
+
+        // Handle drag start
+        actionBlocks.forEach(block => {
+            block.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('text/plain', e.target.dataset.action);
+            });
+        });
+
+        // Handle drag over
+        workspace.addEventListener('dragover', (e) => {
+            e.preventDefault();
+        });
+
+        // Handle drop
+        workspace.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const action = e.dataTransfer.getData('text/plain');
+            const newBlock = createWorkspaceBlock(action);
+            workspace.appendChild(newBlock);
+
+            // Update JSON preview
+            updateJsonPreview();
+
+            // Add block to workspaceBlocks array
+            workspaceBlocks.push({ action });
+        });
+
+        // Add listeners for browser options
+        [
+            'browserSelect', 'headless', 'windowSize', 'userAgent', 'lang', 'incognito',
+            'disableExtensions', 'disableNotifications', 'disableGpu', 'noSandbox',
+            'disableDevShmUsage', 'proxy', 'downloadDir', 'blockCookies'
+        ].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('change', updateJsonPreview);
+                el.addEventListener('input', updateJsonPreview);
+            }
+        });
+    });
 
     // Validate JSON
     function validateJson() {

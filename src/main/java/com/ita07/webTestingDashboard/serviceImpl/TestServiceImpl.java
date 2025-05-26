@@ -19,7 +19,8 @@ public class TestServiceImpl implements TestService {
     public List<ActionResult> executeActions(TestRequest request) {
         validateTestRequest(request);
         String browser = request.getBrowser() != null ? request.getBrowser() : "chrome";
-        WebDriver driver = SeleniumConfig.createDriver(browser);
+        Map<String, Object> browserOptions = request.getBrowserOptions();
+        WebDriver driver = SeleniumConfig.createDriver(browser, browserOptions);
         try {
             SeleniumActionExecutor executor = new SeleniumActionExecutor(driver);
             return executor.executeActions(request.getActions());
