@@ -1,11 +1,9 @@
 package com.ita07.webTestingDashboard.selenium.utils;
 
-import org.openqa.selenium.By;
-import org.openqa.selenium.JavascriptExecutor;
-import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.WebElement;
+import org.openqa.selenium.*;
 import org.openqa.selenium.interactions.Actions;
 import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.Select;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -72,6 +70,37 @@ public class SeleniumUtils {
         }
     }
 
+    // Assert that an element is present in the DOM
+    public static void assertElementPresent(WebDriver driver, By by) {
+        if (driver.findElements(by).isEmpty()) {
+            throw new AssertionError("Element not present: " + by);
+        }
+    }
+
+    // Assert that an element is visible
+    public static void assertElementVisible(WebDriver driver, By by) {
+        WebElement element = driver.findElement(by);
+        if (!element.isDisplayed()) {
+            throw new AssertionError("Element is not visible: " + by);
+        }
+    }
+
+    // Assert that an element is enabled
+    public static void assertElementEnabled(WebDriver driver, By by) {
+        WebElement element = driver.findElement(by);
+        if (!element.isEnabled()) {
+            throw new AssertionError("Element is not enabled: " + by);
+        }
+    }
+
+    // Assert that an element's attribute matches the expected value
+    public static void assertAttributeValue(WebElement element, String attribute, String expected) {
+        String actual = element.getAttribute(attribute);
+        if (actual == null || !actual.equals(expected)) {
+            throw new AssertionError("Expected attribute '" + attribute + "' to be '" + expected + "', but was '" + actual + "'.");
+        }
+    }
+
     // Wait for an element to be visible
     public static WebElement waitForElementVisible(WebDriver driver, By locator, int timeoutInSeconds) {
         WebDriverWait wait = new WebDriverWait(driver, java.time.Duration.ofSeconds(timeoutInSeconds));
@@ -84,6 +113,16 @@ public class SeleniumUtils {
         return wait.until(ExpectedConditions.elementToBeClickable(locator));
     }
 
+    // Static wait function (waits for X seconds)
+    public static void waitSeconds(int seconds) {
+        try {
+            Thread.sleep(seconds * 1000L); // Convert seconds to milliseconds
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt(); // Restore the interrupted status
+            throw new RuntimeException("Thread was interrupted during wait.", e);
+        }
+    }
+
     //Handle consent dialog that pops up when browser opens initially
     public static void handleGoogleConsentDialog(WebDriver driver) {
         try {
@@ -93,5 +132,58 @@ public class SeleniumUtils {
         } catch (Exception e) {
             logger.info("Consent popup not found or already accepted.");
         }
+    }
+
+    // Select an option from a dropdown
+    public static void selectDropdownOption(WebElement selectElement, String selectBy, String option) {
+        Select dropdown = new Select(selectElement);
+        switch (selectBy) {
+            case "value" -> dropdown.selectByValue(option);
+            case "visibletext" -> dropdown.selectByVisibleText(option);
+            case "index" -> {
+                try {
+                    int idx = Integer.parseInt(option);
+                    dropdown.selectByIndex(idx);
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("'option' must be a valid integer for selectBy 'index'.");
+                }
+            }
+            default -> throw new IllegalArgumentException("Unsupported selectBy: " + selectBy);
+        }
+    }
+
+    // Check a checkbox or radio button if not already selected
+    public static void checkElement(WebElement element) {
+        if (!element.isSelected()) {
+            element.click();
+        }
+    }
+
+    // Uncheck a checkbox if it is selected (does nothing for radio buttons)
+    public static void uncheckElement(WebElement element) {
+        String type = element.getAttribute("type");
+        if ("checkbox".equalsIgnoreCase(type) && element.isSelected()) {
+            element.click();
+        }
+    }
+
+    // Double-click an element
+    public static void doubleClickElement(WebDriver driver, WebElement element) {
+        Actions actions = new Actions(driver);
+        actions.doubleClick(element).perform();
+    }
+
+    // Drag and drop from source to target element
+    public static void dragAndDropElement(WebDriver driver, WebElement source, WebElement target) {
+        Actions actions = new Actions(driver);
+        actions.dragAndDrop(source, target).perform();
+    }
+
+    // Capture screenshot as base64 string
+    public static String takeScreenshotAsBase64(WebDriver driver) {
+        if (driver instanceof org.openqa.selenium.TakesScreenshot) {
+            return ((TakesScreenshot) driver).getScreenshotAs(org.openqa.selenium.OutputType.BASE64);
+        }
+        return null; // Or throw an exception if screenshot capability is essential
     }
 }
