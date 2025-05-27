@@ -210,10 +210,19 @@
             urlInput.oninput = updateJsonPreview;
             block.appendChild(urlInput);
         } else if (action === 'click' || action === 'type' || action === 'check' || action === 'uncheck' || action === 'hover' || action === 'scroll' || action === 'doubleclick') {
-            const locatorTypeInput = document.createElement('input');
-            locatorTypeInput.type = 'text';
-            locatorTypeInput.placeholder = 'Locator Type (e.g., id)';
-            locatorTypeInput.oninput = updateJsonPreview;
+            // Locator type dropdown
+            const locatorTypeInput = document.createElement('select');
+            locatorTypeInput.innerHTML = `
+                <option value="id">id</option>
+                <option value="name">name</option>
+                <option value="xpath">xpath</option>
+                <option value="cssSelector">cssSelector</option>
+                <option value="className">className</option>
+                <option value="tagName">tagName</option>
+                <option value="linkText">linkText</option>
+                <option value="partialLinkText">partialLinkText</option>
+            `;
+            locatorTypeInput.onchange = updateJsonPreview;
             block.appendChild(locatorTypeInput);
 
             const locatorValueInput = document.createElement('input');
@@ -237,10 +246,19 @@
             secondsInput.oninput = updateJsonPreview;
             block.appendChild(secondsInput);
         } else if (action === 'select') {
-            const locatorTypeInput = document.createElement('input');
-            locatorTypeInput.type = 'text';
-            locatorTypeInput.placeholder = 'Locator Type (e.g., id)';
-            locatorTypeInput.oninput = updateJsonPreview;
+            // Locator type dropdown
+            const locatorTypeInput = document.createElement('select');
+            locatorTypeInput.innerHTML = `
+                <option value="id">id</option>
+                <option value="name">name</option>
+                <option value="xpath">xpath</option>
+                <option value="cssSelector">cssSelector</option>
+                <option value="className">className</option>
+                <option value="tagName">tagName</option>
+                <option value="linkText">linkText</option>
+                <option value="partialLinkText">partialLinkText</option>
+            `;
+            locatorTypeInput.onchange = updateJsonPreview;
             block.appendChild(locatorTypeInput);
 
             const locatorValueInput = document.createElement('input');
@@ -261,10 +279,19 @@
             optionInput.oninput = updateJsonPreview;
             block.appendChild(optionInput);
         } else if (action === 'upload') {
-            const locatorTypeInput = document.createElement('input');
-            locatorTypeInput.type = 'text';
-            locatorTypeInput.placeholder = 'Locator Type (e.g., id)';
-            locatorTypeInput.oninput = updateJsonPreview;
+            // Locator type dropdown
+            const locatorTypeInput = document.createElement('select');
+            locatorTypeInput.innerHTML = `
+                <option value="id">id</option>
+                <option value="name">name</option>
+                <option value="xpath">xpath</option>
+                <option value="cssSelector">cssSelector</option>
+                <option value="className">className</option>
+                <option value="tagName">tagName</option>
+                <option value="linkText">linkText</option>
+                <option value="partialLinkText">partialLinkText</option>
+            `;
+            locatorTypeInput.onchange = updateJsonPreview;
             block.appendChild(locatorTypeInput);
 
             const locatorValueInput = document.createElement('input');
@@ -285,10 +312,20 @@
             conditionInput.oninput = updateJsonPreview;
             block.appendChild(conditionInput);
 
-            const locatorTypeInput = document.createElement('input');
-            locatorTypeInput.type = 'text';
-            locatorTypeInput.placeholder = 'Locator Type (optional)';
-            locatorTypeInput.oninput = updateJsonPreview;
+            // Locator type dropdown (optional)
+            const locatorTypeInput = document.createElement('select');
+            locatorTypeInput.innerHTML = `
+                <option value="">(none)</option>
+                <option value="id">id</option>
+                <option value="name">name</option>
+                <option value="xpath">xpath</option>
+                <option value="cssSelector">cssSelector</option>
+                <option value="className">className</option>
+                <option value="tagName">tagName</option>
+                <option value="linkText">linkText</option>
+                <option value="partialLinkText">partialLinkText</option>
+            `;
+            locatorTypeInput.onchange = updateJsonPreview;
             block.appendChild(locatorTypeInput);
 
             const locatorValueInput = document.createElement('input');
@@ -309,10 +346,19 @@
             attributeInput.oninput = updateJsonPreview;
             block.appendChild(attributeInput);
         } else if (action === 'draganddrop') {
-            const sourceLocatorTypeInput = document.createElement('input');
-            sourceLocatorTypeInput.type = 'text';
-            sourceLocatorTypeInput.placeholder = 'Source Locator Type (e.g., id)';
-            sourceLocatorTypeInput.oninput = updateJsonPreview;
+            // Source locator type dropdown
+            const sourceLocatorTypeInput = document.createElement('select');
+            sourceLocatorTypeInput.innerHTML = `
+                <option value="id">id</option>
+                <option value="name">name</option>
+                <option value="xpath">xpath</option>
+                <option value="cssSelector">cssSelector</option>
+                <option value="className">className</option>
+                <option value="tagName">tagName</option>
+                <option value="linkText">linkText</option>
+                <option value="partialLinkText">partialLinkText</option>
+            `;
+            sourceLocatorTypeInput.onchange = updateJsonPreview;
             block.appendChild(sourceLocatorTypeInput);
 
             const sourceLocatorValueInput = document.createElement('input');
@@ -321,10 +367,19 @@
             sourceLocatorValueInput.oninput = updateJsonPreview;
             block.appendChild(sourceLocatorValueInput);
 
-            const targetLocatorTypeInput = document.createElement('input');
-            targetLocatorTypeInput.type = 'text';
-            targetLocatorTypeInput.placeholder = 'Target Locator Type (e.g., id)';
-            targetLocatorTypeInput.oninput = updateJsonPreview;
+            // Target locator type dropdown
+            const targetLocatorTypeInput = document.createElement('select');
+            targetLocatorTypeInput.innerHTML = `
+                <option value="id">id</option>
+                <option value="name">name</option>
+                <option value="xpath">xpath</option>
+                <option value="cssSelector">cssSelector</option>
+                <option value="className">className</option>
+                <option value="tagName">tagName</option>
+                <option value="linkText">linkText</option>
+                <option value="partialLinkText">partialLinkText</option>
+            `;
+            targetLocatorTypeInput.onchange = updateJsonPreview;
             block.appendChild(targetLocatorTypeInput);
 
             const targetLocatorValueInput = document.createElement('input');
@@ -356,43 +411,43 @@
                 actionData.url = inputs[0].value;
             } else if (action === 'click' || action === 'type' || action === 'check' || action === 'uncheck' || action === 'hover' || action === 'scroll' || action === 'doubleclick') {
                 actionData.locator = {
-                    type: inputs[0].value,
-                    value: inputs[1].value
+                    type: block.querySelector('select').value,
+                    value: inputs[0].value
                 };
                 if (action === 'type') {
-                    actionData.text = inputs[2].value;
+                    actionData.text = inputs[1].value;
                 }
             } else if (action === 'wait') {
                 actionData.seconds = inputs[0].value;
             } else if (action === 'select') {
                 actionData.locator = {
-                    type: inputs[0].value,
-                    value: inputs[1].value
+                    type: block.querySelector('select').value,
+                    value: inputs[0].value
                 };
-                actionData.selectBy = inputs[2].value;
-                actionData.option = inputs[3].value;
+                actionData.selectBy = inputs[1].value;
+                actionData.option = inputs[2].value;
             } else if (action === 'upload') {
                 actionData.locator = {
-                    type: inputs[0].value,
-                    value: inputs[1].value
+                    type: block.querySelector('select').value,
+                    value: inputs[0].value
                 };
-                actionData.filePath = inputs[2].value;
+                actionData.filePath = inputs[1].value;
             } else if (action === 'assert') {
                 actionData.condition = inputs[0].value;
                 actionData.locator = {
-                    type: inputs[1].value,
-                    value: inputs[2].value
-                };
-                actionData.expected = inputs[3].value;
-                actionData.attribute = inputs[4].value;
-            } else if (action === 'draganddrop') {
-                actionData.sourceLocator = {
-                    type: inputs[0].value,
+                    type: block.querySelector('select').value,
                     value: inputs[1].value
                 };
+                actionData.expected = inputs[2].value;
+                actionData.attribute = inputs[3].value;
+            } else if (action === 'draganddrop') {
+                actionData.sourceLocator = {
+                    type: block.querySelectorAll('select')[0].value,
+                    value: inputs[0].value
+                };
                 actionData.targetLocator = {
-                    type: inputs[2].value,
-                    value: inputs[3].value
+                    type: block.querySelectorAll('select')[1].value,
+                    value: inputs[1].value
                 };
             }
 
@@ -576,3 +631,4 @@
 </script>
 </body>
 </html>
+
