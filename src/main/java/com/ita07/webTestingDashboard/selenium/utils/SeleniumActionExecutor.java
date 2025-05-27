@@ -1,13 +1,17 @@
 package com.ita07.webTestingDashboard.selenium.utils;
 
+import com.ita07.webTestingDashboard.model.ActionResult;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
-import com.ita07.webTestingDashboard.model.ActionResult;
-import java.util.ArrayList;
 
+import java.io.FileOutputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 public class SeleniumActionExecutor {
     private final WebDriver driver;
@@ -67,8 +71,29 @@ public class SeleniumActionExecutor {
                 }
                 results.add(new ActionResult(actionType, "success", "Action executed successfully."));
             } catch (Exception e) {
-                String screenshotBase64 = SeleniumUtils.takeScreenshotAsBase64(driver);
-                results.add(new ActionResult(actionType, "failure", e.getMessage(), screenshotBase64));
+                String screenshotPath = null;
+                try {
+                    String base64 = SeleniumUtils.takeScreenshotAsBase64(driver);
+                    if (base64 != null) {
+                        String screenshotsDir = "screenshots";
+                        Files.createDirectories(Paths.get(screenshotsDir));
+                        String filename = screenshotsDir + "/" + UUID.randomUUID() + ".png";
+                        try (FileOutputStream fos = new FileOutputStream(filename)) {
+                            byte[] imageBytes = java.util.Base64.getDecoder().decode(base64);
+                            fos.write(imageBytes);
+                        }
+                        screenshotPath = filename;
+                    }
+                } catch (Exception ex) {
+                    screenshotPath = null;
+                }
+                String failMessage = e.getMessage();
+                if (failMessage != null) {
+                    int idx = failMessage.indexOf('\n');
+                    if (idx > 0) failMessage = failMessage.substring(0, idx);
+                    if (failMessage.length() > 500) failMessage = failMessage.substring(0, 500) + "...";
+                }
+                results.add(new ActionResult(actionType, "failure", failMessage, screenshotPath));
             }
         }
         return results;
@@ -256,4 +281,3 @@ public class SeleniumActionExecutor {
         };
     }
 }
-

@@ -11,7 +11,7 @@ public class ActionResult {
     private String action;
     private String status; // success or failure
     private String message; // error or info message
-    private String screenshotBase64; // Screenshot as base64 string
+    private String screenshotPath; // Screenshot file path
 
     // Constructor for success without screenshot
     public ActionResult(String action, String status, String message) {

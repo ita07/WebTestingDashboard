@@ -6,26 +6,48 @@ import com.ita07.webTestingDashboard.model.TestRequest;
 import com.ita07.webTestingDashboard.selenium.config.SeleniumConfig;
 import com.ita07.webTestingDashboard.selenium.utils.SeleniumActionExecutor;
 import com.ita07.webTestingDashboard.service.TestService;
+import com.ita07.webTestingDashboard.model.TestRun;
+import com.ita07.webTestingDashboard.repository.TestRunRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.openqa.selenium.WebDriver;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
 @Service
 public class TestServiceImpl implements TestService {
+    @Autowired
+    private TestRunRepository testRunRepository;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     public List<ActionResult> executeActions(TestRequest request) {
         validateTestRequest(request);
         String browser = request.getBrowser() != null ? request.getBrowser() : "chrome";
         WebDriver driver = SeleniumConfig.createDriver(browser);
+        List<ActionResult> results;
         try {
             SeleniumActionExecutor executor = new SeleniumActionExecutor(driver);
-            return executor.executeActions(request.getActions());
+            results = executor.executeActions(request.getActions());
         } finally {
             driver.quit();
         }
+        // Save test run to DB
+        try {
+            TestRun testRun = new TestRun();
+            testRun.setBrowser(browser);
+            testRun.setExecutedAt(LocalDateTime.now());
+            testRun.setActionsJson(objectMapper.writeValueAsString(request.getActions()));
+            testRun.setResultsJson(objectMapper.writeValueAsString(results));
+            testRunRepository.save(testRun);
+        } catch (Exception e) {
+            // Log error but do not fail the test execution
+            e.printStackTrace();
+        }
+        return results;
     }
 
     private void validateTestRequest(TestRequest request) {
