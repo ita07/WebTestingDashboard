@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Test Execution Report</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        .header {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .summary {
+            display: flex;
+            justify-content: space-between;
+            margin: 20px 0;
+        }
+        .status-box {
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            flex: 1;
+            margin: 0 10px;
+        }
+        .total { background-color: #e9ecef; }
+        .success { background-color: #d4edda; color: #155724; }
+        .failure { background-color: #f8d7da; color: #721c24; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        th, td {
+            border: 1px solid #dee2e6;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+        tr:nth-child(even) { background-color: #f8f9fa; }
+        tr:hover { background-color: #f2f2f2; }
+        .status-success { color: #28a745; }
+        .status-failure { color: #dc3545; }
+        .screenshot-link {
+            color: #007bff;
+            text-decoration: none;
+        }
+        .screenshot-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Test Execution Report</h1>
+        <p>Generated on: <span th:text="${#temporals.format(timestamp, 'dd-MM-yyyy HH:mm:ss')}">01-01-2024 00:00:00</span></p>
+    </div>
+
+    <div class="summary">
+        <div class="status-box total">
+            <h3>Total Actions</h3>
+            <p th:text="${#lists.size(results)}">0</p>
+        </div>
+        <div class="status-box success">
+            <h3>Successful</h3>
+            <p th:text="${#lists.size(results.?[status == 'success'])}">0</p>
+        </div>
+        <div class="status-box failure">
+            <h3>Failed</h3>
+            <p th:text="${#lists.size(results.?[status == 'failure'])}">0</p>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Action</th>
+                <th>Status</th>
+                <th>Message</th>
+                <th>Screenshot</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr th:each="result, stat : ${results}">
+                <td th:text="${stat.count}">1</td>
+                <td th:text="${result.action}">Action</td>
+                <td th:class="${'status-' + result.status}" th:text="${result.status}">Status</td>
+                <td th:text="${result.message}">Message</td>
+                <td>
+                    <a th:if="${result.screenshotPath}"
+                       th:href="${result.screenshotPath}"
+                       class="screenshot-link"
+                       target="_blank">View Screenshot</a>
+                    <span th:unless="${result.screenshotPath}">N/A</span>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</body>
+</html>
