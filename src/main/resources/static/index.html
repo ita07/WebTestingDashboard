@@ -131,8 +131,12 @@
 <button onclick="validateJson()">Validate JSON</button>
 <div id="errorMessage" class="error-message"></div>
 
-<!-- Run Tests Button -->
-<button id="runTestsButton" onclick="runTests()" disabled>Run Tests</button>
+<!-- Run Tests Button and Stop on Failure Toggle -->
+<div style="margin-top: 20px; display: flex; align-items: center; gap: 16px;">
+    <button id="runTestsButton" onclick="runTests()" disabled>Run Tests</button>
+    <label style="margin: 0;"><input type="checkbox" id="stopOnFailure"> Stop on Failure</label>
+    <button onclick="window.location.href='/reports-viewer'" style="background-color: #28a745;">View Reports</button>
+</div>
 
 <!-- Results -->
 <h2>Results:</h2>
@@ -143,10 +147,41 @@
 <button onclick="fetchTestHistory()">Refresh History</button>
 <div id="historySection"></div>
 
+<!-- Test Suite Management -->
+<h2>Test Suite Management</h2>
+<div id="suiteSection">
+    <button onclick="fetchSuites()">Refresh Suites</button>
+    <select id="suiteSelect"></select>
+    <button onclick="loadSuite()">Load</button>
+    <button onclick="deleteSuite()">Delete</button>
+    <input type="text" id="suiteName" placeholder="Suite Name">
+    <input type="text" id="suiteDesc" placeholder="Description">
+    <button onclick="saveSuite()">Save as New</button>
+    <button onclick="updateSuite()">Update</button>
+</div>
+<br>
+
 <script>
     // Track blocks in the workspace
     let workspaceBlocks = [];
     let isValidJson = false;
+
+    // Add event listener for stopOnFailure checkbox
+    const stopOnFailureCheckbox = document.getElementById('stopOnFailure');
+    if (stopOnFailureCheckbox) {
+        stopOnFailureCheckbox.addEventListener('change', function() {
+            const jsonPreview = document.getElementById('jsonPreview');
+            try {
+                const parsed = JSON.parse(jsonPreview.value);
+                parsed.stopOnFailure = this.checked;
+                jsonPreview.value = JSON.stringify(parsed, null, 2);
+                validateJson();
+            } catch (e) {
+                // If JSON is invalid, just trigger normal update
+                updateJsonPreview();
+            }
+        });
+    }
 
     // Add event listeners for drag-and-drop
     document.addEventListener('DOMContentLoaded', () => {
@@ -460,14 +495,15 @@
     // Update JSON preview to use the browser from the UI if present, else fallback to 'chrome'
     function updateJsonPreview() {
         const actions = getActionsFromWorkspace();
-        // Try to get browser from the JSON preview if user has edited it, else fallback to 'chrome'
         let browser = 'chrome';
+        let stopOnFailure = document.getElementById('stopOnFailure')?.checked || false;
         try {
             const parsed = JSON.parse(document.getElementById('jsonPreview').value);
             if (parsed.browser) browser = parsed.browser;
+            if (typeof parsed.stopOnFailure === 'boolean') stopOnFailure = parsed.stopOnFailure;
         } catch (e) {}
         const jsonPreview = document.getElementById('jsonPreview');
-        jsonPreview.value = JSON.stringify({ browser, actions }, null, 2);
+        jsonPreview.value = JSON.stringify({ browser, stopOnFailure, actions }, null, 2);
         isValidJson = false;
         document.getElementById('runTestsButton').disabled = true;
         document.getElementById('errorMessage').textContent = '';
@@ -482,6 +518,8 @@
             if (!parsed.actions || !Array.isArray(parsed.actions)) {
                 throw new Error('The root object must have an "actions" array property.');
             }
+            // Sync stopOnFailure checkbox
+            document.getElementById('stopOnFailure').checked = !!parsed.stopOnFailure;
             isValidJson = true;
             document.getElementById('runTestsButton').disabled = false; // Enable Run Tests button
             document.getElementById('errorMessage').textContent = 'JSON is valid!';
@@ -595,6 +633,77 @@
             historySection.textContent = `Error: ${error.message}`;
         }
     }
+
+    // --- Test Suite Management ---
+    async function fetchSuites() {
+        const select = document.getElementById('suiteSelect');
+        select.innerHTML = '';
+        try {
+            const res = await fetch('/api/suites');
+            if (!res.ok) return;
+            const suites = await res.json();
+            suites.forEach(suite => {
+                const opt = document.createElement('option');
+                opt.value = suite.id;
+                opt.textContent = `${suite.name} (${suite.id})`;
+                select.appendChild(opt);
+            });
+        } catch {}
+    }
+    async function loadSuite() {
+        const select = document.getElementById('suiteSelect');
+        if (!select.value) return;
+        const res = await fetch(`/api/suites/${select.value}`);
+        if (!res.ok) return;
+        const suite = await res.json();
+        document.getElementById('suiteName').value = suite.name || '';
+        document.getElementById('suiteDesc').value = suite.description || '';
+        // Load actionsJson into workspace and JSON preview
+        try {
+            const parsed = JSON.parse(suite.actionsJson);
+            document.getElementById('jsonPreview').value = JSON.stringify(parsed, null, 2);
+            validateJson();
+        } catch {}
+    }
+    async function saveSuite() {
+        const name = document.getElementById('suiteName').value;
+        const desc = document.getElementById('suiteDesc').value;
+        const actionsJson = document.getElementById('jsonPreview').value;
+        if (!name || !actionsJson) return alert('Name and actions required');
+        const payload = { name, description: desc, actionsJson };
+        const res = await fetch('/api/suites', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (res.ok) { fetchSuites(); alert('Suite saved!'); }
+        else alert('Failed to save suite');
+    }
+    async function updateSuite() {
+        const select = document.getElementById('suiteSelect');
+        if (!select.value) return;
+        const name = document.getElementById('suiteName').value;
+        const desc = document.getElementById('suiteDesc').value;
+        const actionsJson = document.getElementById('jsonPreview').value;
+        if (!name || !actionsJson) return alert('Name and actions required');
+        const payload = { name, description: desc, actionsJson };
+        const res = await fetch(`/api/suites/${select.value}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (res.ok) { fetchSuites(); alert('Suite updated!'); }
+        else alert('Failed to update suite');
+    }
+    async function deleteSuite() {
+        const select = document.getElementById('suiteSelect');
+        if (!select.value) return;
+        if (!confirm('Delete this suite?')) return;
+        const res = await fetch(`/api/suites/${select.value}`, { method: 'DELETE' });
+        if (res.ok) { fetchSuites(); alert('Suite deleted!'); }
+        else alert('Failed to delete suite');
+    }
+    // --- End Test Suite Management ---
 
     // Modal to show JSON (actions/results)
     function showJsonModal(jsonString, title) {
