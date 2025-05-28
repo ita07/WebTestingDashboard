@@ -24,8 +24,11 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
+                // Disable CSRF for APIs and non-browser clients
                 .csrf(AbstractHttpConfigurer::disable)
+                // Configure endpoint authorization
                 .authorizeHttpRequests(authz -> authz
+                        // Public resources and documentation
                         .requestMatchers(
                             "/static/**",
                             "/screenshots/**",
@@ -34,14 +37,33 @@ public class SecurityConfig {
                             "/swagger-ui/**",
                             "/v3/api-docs/**"
                         ).permitAll()
+                        // Require authentication for all API endpoints
+                        .requestMatchers("/api/**").authenticated()
+                        // Require authentication for all other endpoints (web UI)
                         .anyRequest().authenticated()
                 )
+                // Enable HTTP Basic for API endpoints (for Swagger UI and programmatic access)
+                .httpBasic(Customizer.withDefaults())
+                // Enable form-based login for web UI
                 .formLogin(form -> form
-                        .loginPage("/login") // Changed from /login.html to /login
+                        .loginPage("/login")
                         .loginProcessingUrl("/login")
                         .defaultSuccessUrl("/", true)
                         .failureUrl("/login?error=true")
                         .permitAll()
+                )
+                // Custom authentication entry point:
+                // - For /api/** endpoints, return 401 Unauthorized (no login page or browser popup)
+                // - For all other endpoints, redirect to the login page
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            String uri = request.getRequestURI();
+                            if (uri.startsWith("/api/")) {
+                                response.sendError(401, "Unauthorized");
+                            } else {
+                                response.sendRedirect("/login");
+                            }
+                        })
                 );
         return http.build();
     }

@@ -76,6 +76,10 @@
             <h3>Failed</h3>
             <p th:text="${#lists.size(results.?[status == 'failure'])}">0</p>
         </div>
+        <div class="status-box total">
+            <h3>Total Execution Time</h3>
+            <p th:text="${#numbers.formatDecimal(totalExecutionTimeSeconds, 1, 2)} + ' s'">0.00 s</p>
+        </div>
     </div>
 
     <table>

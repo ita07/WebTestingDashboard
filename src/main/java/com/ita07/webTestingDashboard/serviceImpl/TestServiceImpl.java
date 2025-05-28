@@ -302,7 +302,8 @@ public class TestServiceImpl implements TestService {
         Context context = new Context();
         context.setVariable("results", results);
         context.setVariable("timestamp", LocalDateTime.now());
-
+        double totalExecutionTimeSeconds = results.stream().mapToLong(ActionResult::getExecutionTimeMillis).sum() / 1000.0;
+        context.setVariable("totalExecutionTimeSeconds", totalExecutionTimeSeconds);
         return templateEngine.process("report", context);
     }
 
