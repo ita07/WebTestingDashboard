@@ -83,8 +83,10 @@
             <tr>
                 <th>#</th>
                 <th>Action</th>
+                <th>Details</th>
                 <th>Status</th>
                 <th>Message</th>
+                <th>Time (s)</th>
                 <th>Screenshot</th>
             </tr>
         </thead>
@@ -92,8 +94,13 @@
             <tr th:each="result, stat : ${results}">
                 <td th:text="${stat.count}">1</td>
                 <td th:text="${result.action}">Action</td>
+                <td>
+                    <span th:if="${result.details != null}" th:text="${result.details}"></span>
+                    <span th:if="${result.details == null}">N/A</span>
+                </td>
                 <td th:class="${'status-' + result.status}" th:text="${result.status}">Status</td>
                 <td th:text="${result.message}">Message</td>
+                <td th:text="${#numbers.formatDecimal(result.executionTimeMillis / 1000.0, 1, 2)}">0.00</td>
                 <td>
                     <a th:if="${result.screenshotPath}"
                        th:href="${result.screenshotPath}"

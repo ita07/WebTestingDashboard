@@ -101,6 +101,27 @@
 <body>
 <h1>Selenium Automation</h1>
 
+<!-- Test Data Management Section -->
+<div id="testDataSection">
+    <h2>Test Data Management</h2>
+    <div class="test-data-form">
+        <input type="text" id="testDataName" placeholder="Test Data Name">
+        <input type="text" id="testDataDesc" placeholder="Description">
+        <textarea id="testDataJson" placeholder="Variables in JSON format:
+{
+    &quot;username&quot;: &quot;testuser&quot;,
+    &quot;password&quot;: &quot;pass123&quot;,
+    &quot;url&quot;: &quot;https://example.com&quot;
+}" class="json-preview"></textarea>
+        <button onclick="saveTestData()">Save Test Data</button>
+        <select id="testDataSelect" onchange="loadTestData()">
+            <option value="">Select Test Data</option>
+        </select>
+        <button onclick="updateTestData()">Update Selected</button>
+        <button onclick="deleteTestData()">Delete</button>
+    </div>
+</div>
+
 <!-- Available Actions -->
 <div>
     <h3>Available Actions</h3>
@@ -497,14 +518,30 @@
         const actions = getActionsFromWorkspace();
         let browser = 'chrome';
         let stopOnFailure = document.getElementById('stopOnFailure')?.checked || false;
+        let testDataId = document.getElementById('testDataSelect')?.value; // Get current value from dropdown
+
+        // Try to preserve browser and stopOnFailure from existing preview if it's valid JSON
         try {
-            const parsed = JSON.parse(document.getElementById('jsonPreview').value);
-            if (parsed.browser) browser = parsed.browser;
-            if (typeof parsed.stopOnFailure === 'boolean') stopOnFailure = parsed.stopOnFailure;
-        } catch (e) {}
-        const jsonPreview = document.getElementById('jsonPreview');
-        jsonPreview.value = JSON.stringify({ browser, stopOnFailure, actions }, null, 2);
-        isValidJson = false;
+            const existingPreviewText = document.getElementById('jsonPreview').value;
+            if (existingPreviewText) {
+                const parsedExistingPreview = JSON.parse(existingPreviewText);
+                if (parsedExistingPreview.browser) browser = parsedExistingPreview.browser;
+                if (typeof parsedExistingPreview.stopOnFailure === 'boolean') stopOnFailure = parsedExistingPreview.stopOnFailure;
+            }
+        } catch (e) {
+            // Ignore if jsonPreview is not valid JSON, defaults will be used.
+        }
+
+        const jsonPreviewTextarea = document.getElementById('jsonPreview');
+        const previewObj = { browser, stopOnFailure, actions };
+
+        if (testDataId && testDataId !== "") { // Check if a valid selection (not the placeholder) is made
+            previewObj.testDataId = parseInt(testDataId);
+        }
+        // If testDataId is empty or null (e.g., placeholder selected), it won't be added to previewObj.
+
+        jsonPreviewTextarea.value = JSON.stringify(previewObj, null, 2);
+        isValidJson = false; // Force re-validation as preview has changed
         document.getElementById('runTestsButton').disabled = true;
         document.getElementById('errorMessage').textContent = '';
     }
@@ -538,14 +575,15 @@
         }
 
         const jsonPreview = document.getElementById('jsonPreview');
-        const payload = JSON.parse(jsonPreview.value); // Now the full object
-        const resultsDiv = document.getElementById('results');
+        const payload = JSON.parse(jsonPreview.value); // payload will now have testDataId if it was in the preview
 
-        // Clear previous results
+        // The testDataId is now part of the payload if it was in the jsonPreview,
+        // so no need to add it separately here.
+
+        const resultsDiv = document.getElementById('results');
         resultsDiv.textContent = 'Running tests...';
 
         try {
-            // Send the JSON payload to the backend
             const response = await fetch('/api/tests/run', {
                 method: 'POST',
                 headers: {
@@ -575,11 +613,16 @@
             if (Array.isArray(results)) {
                 // Build a table of results
                 let html = '<table id="resultsTable">';
-                html += '<tr><th>Action</th><th>Status</th><th>Message</th><th>Screenshot</th></tr>'; // Added Screenshot header
+                html += '<tr><th>Action</th><th>Status</th><th>Message</th><th>Time (s)</th><th>Screenshot</th></tr>'; // Added Time (s) header
                 results.forEach(r => {
                     html += `<tr><td>${r.action}</td><td class="${r.status}">${r.status}</td><td>${r.message}</td>`;
+                    // Show time in seconds with 2 decimals
+                    if (typeof r.executionTimeMillis === 'number') {
+                        html += `<td>${(r.executionTimeMillis / 1000).toFixed(2)}</td>`;
+                    } else {
+                        html += '<td>N/A</td>';
+                    }
                     if (r.screenshotPath) {
-                        // If the screenshot is a file path, show a link to download/view it
                         let screenshotUrl = r.screenshotPath;
                         if (screenshotUrl.startsWith('screenshots/')) {
                             screenshotUrl = '/' + screenshotUrl.replace(/\\/g, '/');
@@ -737,6 +780,184 @@
             return jsonString;
         }
     }
+
+    // --- Test Data Management Functions ---
+    async function fetchTestData() {
+        const select = document.getElementById('testDataSelect');
+        select.innerHTML = '<option value="">Select Test Data</option>';
+        try {
+            const res = await fetch('/api/testdata');
+            if (!res.ok) return;
+            const testDataList = await res.json();
+            testDataList.forEach(data => {
+                const opt = document.createElement('option');
+                opt.value = data.id;
+                opt.textContent = `${data.name}`;
+                select.appendChild(opt);
+            });
+        } catch (error) {
+            console.error('Failed to fetch test data:', error);
+        }
+    }
+
+    async function loadTestData() {
+        const select = document.getElementById('testDataSelect');
+        if (!select.value) { // If "Select Test Data" (value="") is chosen
+            document.getElementById('testDataName').value = '';
+            document.getElementById('testDataDesc').value = '';
+            document.getElementById('testDataJson').value = '';
+            updateJsonPreview(); // Update preview to remove testDataId
+            return;
+        }
+        try {
+            const res = await fetch(`/api/testdata/${select.value}`);
+            if (!res.ok) {
+                updateJsonPreview(); // Update preview even if fetch fails (to reflect current selection)
+                return;
+            }
+            const testData = await res.json();
+            document.getElementById('testDataName').value = testData.name || '';
+            document.getElementById('testDataDesc').value = testData.description || '';
+            document.getElementById('testDataJson').value = formatJson(testData.dataJson);
+            updateJsonPreview(); // Update preview to include/update testDataId
+        } catch (error) {
+            console.error('Failed to load test data:', error);
+            updateJsonPreview(); // Ensure preview is updated
+        }
+    }
+
+    async function saveTestData() {
+        const name = document.getElementById('testDataName').value;
+        const desc = document.getElementById('testDataDesc').value;
+        const dataJson = document.getElementById('testDataJson').value;
+        if (!name || !dataJson) {
+            alert('Name and JSON data are required');
+            return;
+        }
+        try {
+            JSON.parse(dataJson); // Validate JSON
+        } catch (e) {
+            alert('Invalid JSON data');
+            return;
+        }
+
+        const payload = {
+            name: name,
+            description: desc,
+            dataJson: dataJson
+        };
+
+        try {
+            const res = await fetch('/api/testdata', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) {
+                fetchTestData();
+                alert('Test data saved successfully!');
+            } else {
+                alert('Failed to save test data');
+            }
+        } catch (error) {
+            console.error('Failed to save test data:', error);
+            alert('Failed to save test data');
+        }
+    }
+
+    async function deleteTestData() {
+        const select = document.getElementById('testDataSelect');
+        if (!select.value) return;
+        if (!confirm('Delete this test data?')) return;
+
+        try {
+            const res = await fetch(`/api/testdata/${select.value}`, {
+                method: 'DELETE'
+            });
+            if (res.ok) {
+                await fetchTestData();
+                alert('Test data deleted successfully!');
+                document.getElementById('testDataName').value = '';
+                document.getElementById('testDataDesc').value = '';
+                document.getElementById('testDataJson').value = '';
+            } else {
+                alert('Failed to delete test data');
+            }
+        } catch (error) {
+            console.error('Failed to delete test data:', error);
+            alert('Failed to delete test data');
+        }
+    }
+
+    async function updateTestData() {
+        const select = document.getElementById('testDataSelect');
+        const testDataId = select.value;
+
+        if (!testDataId) {
+            alert('Please select a Test Data set to update.');
+            return;
+        }
+
+        const name = document.getElementById('testDataName').value;
+        const desc = document.getElementById('testDataDesc').value;
+        const dataJson = document.getElementById('testDataJson').value;
+
+        if (!name || !dataJson) {
+            alert('Name and JSON data are required for updating.');
+            return;
+        }
+
+        try {
+            JSON.parse(dataJson); // Validate JSON
+        } catch (e) {
+            alert('Invalid JSON data. Please correct it before updating.');
+            return;
+        }
+
+        const payload = {
+            name: name,
+            description: desc,
+            dataJson: dataJson
+        };
+
+        try {
+            const res = await fetch(`/api/testdata/${testDataId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                const originalSelectedIndex = select.selectedIndex;
+                await fetchTestData(); // Refresh the dropdown
+                // Try to re-select the previously selected item, its text might have changed
+                if (originalSelectedIndex >= 0 && originalSelectedIndex < select.options.length) {
+                     // Check if the ID still exists (it should after an update)
+                    const optionToReselect = Array.from(select.options).find(opt => opt.value === testDataId);
+                    if (optionToReselect) {
+                        select.value = testDataId;
+                    } else {
+                        // If ID somehow disappeared, reset selection
+                        select.selectedIndex = 0;
+                    }
+                }
+                await loadTestData(); // Reload data into form to show updated values & update JSON preview
+                alert('Test data updated successfully!');
+            } else {
+                const errorData = await res.json().catch(() => ({ message: 'Failed to update test data. Server did not provide details.' }));
+                alert(`Failed to update test data: ${errorData.message}`);
+            }
+        } catch (error) {
+            console.error('Error updating test data:', error);
+            alert('An error occurred while updating test data.');
+        }
+    }
+
+    // Load test data on page load
+    document.addEventListener('DOMContentLoaded', () => {
+        fetchTestData();
+        // ... existing DOMContentLoaded handlers ...
+    });
 </script>
 </body>
 </html>

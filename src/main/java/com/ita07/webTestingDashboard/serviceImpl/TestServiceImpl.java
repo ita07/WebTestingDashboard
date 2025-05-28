@@ -1,10 +1,13 @@
 package com.ita07.webTestingDashboard.serviceImpl;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.ita07.webTestingDashboard.exception.ValidationException;
 import com.ita07.webTestingDashboard.model.ActionResult;
+import com.ita07.webTestingDashboard.model.TestData;
 import com.ita07.webTestingDashboard.model.TestRequest;
 import com.ita07.webTestingDashboard.selenium.config.SeleniumConfig;
 import com.ita07.webTestingDashboard.selenium.utils.SeleniumActionExecutor;
+import com.ita07.webTestingDashboard.service.TestDataService;
 import com.ita07.webTestingDashboard.service.TestService;
 import com.ita07.webTestingDashboard.model.TestRun;
 import com.ita07.webTestingDashboard.repository.TestRunRepository;
@@ -24,6 +27,7 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 
 @Service
 public class TestServiceImpl implements TestService {
@@ -33,6 +37,8 @@ public class TestServiceImpl implements TestService {
     private TestRunRepository testRunRepository;
     @Autowired
     private TemplateEngine templateEngine;
+    @Autowired
+    private TestDataService testDataService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
@@ -41,12 +47,36 @@ public class TestServiceImpl implements TestService {
         String browser = request.getBrowser() != null ? request.getBrowser() : "chrome";
         WebDriver driver = SeleniumConfig.createDriver(browser);
         List<ActionResult> results;
+
+        // Handle test data if provided
+        List<Map<String, Object>> resolvedActions = request.getActions();
+        if (request.getTestDataId() != null) {
+            try {
+                TestData testData = testDataService.getTestData(request.getTestDataId());
+                // Properly parse the JSON string into a Map
+                Map<String, Object> variables = objectMapper.readValue(testData.getDataJson(), new TypeReference<>() {});
+                logger.info("Loaded test data variables: {}", variables);
+
+                resolvedActions = request.getActions().stream()
+                    .map(action -> {
+                        Map<String, Object> resolvedAction = testDataService.resolveVariables(new HashMap<>(action), variables);
+                        logger.info("Original action: {}, Resolved action: {}", action, resolvedAction);
+                        return resolvedAction;
+                    })
+                    .toList();
+            } catch (Exception e) {
+                logger.error("Failed to process test data: {}", e.getMessage(), e);
+                throw new ValidationException("Failed to process test data: " + e.getMessage());
+            }
+        }
+
         try {
             SeleniumActionExecutor executor = new SeleniumActionExecutor(driver);
-            results = executor.executeActions(request.getActions(), request.isStopOnFailure());
+            results = executor.executeActions(resolvedActions, request.isStopOnFailure());
         } finally {
             driver.quit();
         }
+
         // Save test run to DB
         try {
             TestRun testRun = new TestRun();
@@ -262,10 +292,6 @@ public class TestServiceImpl implements TestService {
                         !targetLocatorType.equals("classname") && !targetLocatorType.equals("tagname") && !targetLocatorType.equals("linktext") && !targetLocatorType.equals("partiallinktext")) {
                         throw new ValidationException("Unsupported targetLocator type: '" + targetLocatorType + "' for action 'draganddrop' at index " + i + ".");
                     }
-                }
-                // Add more cases for other actions as needed
-                default -> {
-                    // Optionally, throw for unsupported actions
                 }
             }
             i++;

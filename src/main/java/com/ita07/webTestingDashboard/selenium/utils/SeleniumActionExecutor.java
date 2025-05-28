@@ -29,15 +29,19 @@ public class SeleniumActionExecutor {
 
     public List<ActionResult> executeActions(List<Map<String, Object>> actions, boolean stopOnFailure) {
         List<ActionResult> results = new ArrayList<>();
-        int i = 0;
         boolean failed = false;
-        for (; i < actions.size(); i++) {
-            Map<String, Object> action = actions.get(i);
+        for (Map<String, Object> action : actions) {
             String actionType = getActionType(action);
             String timestamp = LocalDateTime.now().format(TIMESTAMP_FORMATTER);
+            long startTime = System.currentTimeMillis();
+            long endTime;
+            long durationMillis;
+            String details = buildDetailsString(actionType, action);
+
             if (failed) {
                 logger.info("[{}] Skipping action '{}' due to previous failure.", timestamp, actionType);
-                results.add(new ActionResult(actionType, "not_run", "Action was not executed due to previous failure.", null));
+                durationMillis = 0; // Skipped actions have 0 duration
+                results.add(new ActionResult(actionType, "skipped", "Action was not executed due to previous failure.", null, durationMillis, details));
                 continue;
             }
             try {
@@ -85,13 +89,17 @@ public class SeleniumActionExecutor {
                     default:
                         throw new IllegalArgumentException("Unsupported action: " + actionType);
                 }
-                logger.info("[{}] Action '{}' executed successfully.", timestamp, actionType);
-                results.add(new ActionResult(actionType, "success", "Action executed successfully."));
+                endTime = System.currentTimeMillis();
+                durationMillis = endTime - startTime;
+                logger.info("[{}] Action '{}' executed successfully in {} ms.", timestamp, actionType, durationMillis);
+                results.add(new ActionResult(actionType, "success", "Action executed successfully.", null, durationMillis, details));
             } catch (Exception e) {
+                endTime = System.currentTimeMillis();
+                durationMillis = endTime - startTime;
                 String failMessage = extractErrorMessage(e);
-                logger.error("[{}] Action '{}' failed with error: {}", timestamp, actionType, failMessage, e);
+                logger.error("[{}] Action '{}' failed after {} ms with error: {}", timestamp, actionType, durationMillis, failMessage, e);
                 String screenshotPath = captureScreenshot(actionType);
-                results.add(new ActionResult(actionType, "failure", failMessage, screenshotPath));
+                results.add(new ActionResult(actionType, "failure", failMessage, screenshotPath, durationMillis, details));
                 if (stopOnFailure) {
                     failed = true;
                 }
@@ -317,5 +325,53 @@ public class SeleniumActionExecutor {
             return newlineIndex != -1 ? fullMessage.substring(0, newlineIndex) : fullMessage;
         }
         return "An unknown error occurred.";
+    }
+
+    private String buildDetailsString(String actionType, Map<String, Object> action) {
+        StringBuilder sb = new StringBuilder();
+        switch (actionType) {
+            case "navigate" -> sb.append("url=").append(action.getOrDefault("url", ""));
+            case "click", "check", "uncheck", "hover", "scroll", "doubleclick" -> {
+                sb.append("locator=").append(stringifyLocator(action.get("locator")));
+            }
+            case "type" -> {
+                sb.append("locator=").append(stringifyLocator(action.get("locator")));
+                sb.append(", text=").append(action.getOrDefault("text", ""));
+            }
+            case "wait" -> sb.append("seconds=").append(action.getOrDefault("seconds", ""));
+            case "select" -> {
+                sb.append("locator=").append(stringifyLocator(action.get("locator")));
+                sb.append(", selectBy=").append(action.getOrDefault("selectBy", ""));
+                sb.append(", option=").append(action.getOrDefault("option", ""));
+            }
+            case "upload" -> {
+                sb.append("locator=").append(stringifyLocator(action.get("locator")));
+                sb.append(", filePath=").append(action.getOrDefault("filePath", ""));
+            }
+            case "assert" -> {
+                sb.append("condition=").append(action.getOrDefault("condition", ""));
+                if (action.get("locator") != null) sb.append(", locator=").append(stringifyLocator(action.get("locator")));
+                if (action.get("expected") != null) sb.append(", expected=").append(action.get("expected"));
+                if (action.get("attribute") != null) sb.append(", attribute=").append(action.get("attribute"));
+            }
+            case "draganddrop" -> {
+                sb.append("sourceLocator=").append(stringifyLocator(action.get("sourceLocator")));
+                sb.append(", targetLocator=").append(stringifyLocator(action.get("targetLocator")));
+            }
+        }
+        return sb.toString();
+    }
+
+    private String stringifyLocator(Object locatorObj) {
+        if (locatorObj instanceof Map<?, ?> loc) {
+            Object typeObj = loc.get("type");
+            Object valueObj = loc.get("value");
+
+            String type = (typeObj != null) ? String.valueOf(typeObj) : "";
+            String value = (valueObj != null) ? String.valueOf(valueObj) : "";
+
+            return "{" + type + ": '" + value + "'}";
+        }
+        return String.valueOf(locatorObj);
     }
 }
