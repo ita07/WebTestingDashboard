@@ -8,4 +8,5 @@ import java.util.Map;
 public class TestRequest {
     private String browser;
     private List<Map<String, Object>> actions;
+    private boolean stopOnFailure = false;
 }

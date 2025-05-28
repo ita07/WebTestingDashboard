@@ -29,16 +29,18 @@ public class SecurityConfig {
                         .requestMatchers(
                             "/static/**",
                             "/screenshots/**",
+                            "/reports/**",
+                            "/reports-viewer/**",
                             "/swagger-ui/**",
                             "/v3/api-docs/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
                 .formLogin(form -> form
-                        .loginPage("/login.html")
-                        .loginProcessingUrl("/login") // Explicitly define the login processing URL
-                        .defaultSuccessUrl("/", true) // Redirect to root on successful login
-                        .failureUrl("/login.html?error=true") // Redirect on login failure
+                        .loginPage("/login") // Changed from /login.html to /login
+                        .loginProcessingUrl("/login")
+                        .defaultSuccessUrl("/", true)
+                        .failureUrl("/login?error=true")
                         .permitAll()
                 );
         return http.build();

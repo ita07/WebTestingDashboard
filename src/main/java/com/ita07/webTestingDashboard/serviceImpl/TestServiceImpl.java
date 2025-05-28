@@ -12,15 +12,27 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.openqa.selenium.WebDriver;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.thymeleaf.TemplateEngine;
+import org.thymeleaf.context.Context;
 
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
 @Service
 public class TestServiceImpl implements TestService {
+    private static final Logger logger = LoggerFactory.getLogger(TestServiceImpl.class);
+
     @Autowired
     private TestRunRepository testRunRepository;
+    @Autowired
+    private TemplateEngine templateEngine;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
@@ -31,7 +43,7 @@ public class TestServiceImpl implements TestService {
         List<ActionResult> results;
         try {
             SeleniumActionExecutor executor = new SeleniumActionExecutor(driver);
-            results = executor.executeActions(request.getActions());
+            results = executor.executeActions(request.getActions(), request.isStopOnFailure());
         } finally {
             driver.quit();
         }
@@ -44,9 +56,16 @@ public class TestServiceImpl implements TestService {
             testRun.setResultsJson(objectMapper.writeValueAsString(results));
             testRunRepository.save(testRun);
         } catch (Exception e) {
-            // Log error but do not fail the test execution
-            e.printStackTrace();
+            logger.error("Failed to save test run to the database", e);
         }
+
+        // Generate and save HTML report
+        String htmlContent = generateHtmlReport(results);
+        String reportPath = saveHtmlReport(htmlContent);
+        if (reportPath != null) {
+            logger.info("Test report saved at: {}", reportPath);
+        }
+
         return results;
     }
 
@@ -250,6 +269,32 @@ public class TestServiceImpl implements TestService {
                 }
             }
             i++;
+        }
+    }
+
+    private String generateHtmlReport(List<ActionResult> results) {
+        Context context = new Context();
+        context.setVariable("results", results);
+        context.setVariable("timestamp", LocalDateTime.now());
+
+        return templateEngine.process("report", context);
+    }
+
+    private String saveHtmlReport(String htmlContent) {
+        String reportsDir = "reports";
+        File dir = new File(reportsDir);
+        if (!dir.exists() && !dir.mkdirs()) {
+            logger.error("Failed to create directory: {}", reportsDir);
+            return null;
+        }
+
+        String reportPath = reportsDir + "/test-report-" + System.currentTimeMillis() + ".html";
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(reportPath))) {
+            writer.write(htmlContent);
+            return reportPath;
+        } catch (IOException e) {
+            logger.error("Failed to save HTML report", e);
+            return null;
         }
     }
 }
