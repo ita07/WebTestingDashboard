@@ -26,10 +26,21 @@ public class SecurityConfig {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(authz -> authz
-                        .requestMatchers("/screenshots/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        .requestMatchers(
+                            "/static/**",
+                            "/screenshots/**",
+                            "/swagger-ui/**",
+                            "/v3/api-docs/**"
+                        ).permitAll()
                         .anyRequest().authenticated()
                 )
-                .httpBasic(Customizer.withDefaults());
+                .formLogin(form -> form
+                        .loginPage("/login.html")
+                        .loginProcessingUrl("/login") // Explicitly define the login processing URL
+                        .defaultSuccessUrl("/", true) // Redirect to root on successful login
+                        .failureUrl("/login.html?error=true") // Redirect on login failure
+                        .permitAll()
+                );
         return http.build();
     }
 
