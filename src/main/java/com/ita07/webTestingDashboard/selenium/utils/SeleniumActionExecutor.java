@@ -4,16 +4,22 @@ import com.ita07.webTestingDashboard.model.ActionResult;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.FileOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 public class SeleniumActionExecutor {
+    private static final Logger logger = LoggerFactory.getLogger(SeleniumActionExecutor.class);
+    private static final DateTimeFormatter TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private final WebDriver driver;
     private static final int DEFAULT_TIMEOUT = 10;
 
@@ -21,11 +27,21 @@ public class SeleniumActionExecutor {
         this.driver = driver;
     }
 
-    public List<ActionResult> executeActions(List<Map<String, Object>> actions) {
+    public List<ActionResult> executeActions(List<Map<String, Object>> actions, boolean stopOnFailure) {
         List<ActionResult> results = new ArrayList<>();
-        for (Map<String, Object> action : actions) {
+        int i = 0;
+        boolean failed = false;
+        for (; i < actions.size(); i++) {
+            Map<String, Object> action = actions.get(i);
             String actionType = getActionType(action);
+            String timestamp = LocalDateTime.now().format(TIMESTAMP_FORMATTER);
+            if (failed) {
+                logger.info("[{}] Skipping action '{}' due to previous failure.", timestamp, actionType);
+                results.add(new ActionResult(actionType, "not_run", "Action was not executed due to previous failure.", null));
+                continue;
+            }
             try {
+                logger.info("[{}] Starting action: {} with parameters: {}", timestamp, actionType, action);
                 switch (actionType) {
                     case "navigate":
                         executeNavigateAction(action);
@@ -69,34 +85,46 @@ public class SeleniumActionExecutor {
                     default:
                         throw new IllegalArgumentException("Unsupported action: " + actionType);
                 }
+                logger.info("[{}] Action '{}' executed successfully.", timestamp, actionType);
                 results.add(new ActionResult(actionType, "success", "Action executed successfully."));
             } catch (Exception e) {
-                String screenshotPath = null;
-                try {
-                    String base64 = SeleniumUtils.takeScreenshotAsBase64(driver);
-                    if (base64 != null) {
-                        String screenshotsDir = "screenshots";
-                        Files.createDirectories(Paths.get(screenshotsDir));
-                        String filename = screenshotsDir + "/" + UUID.randomUUID() + ".png";
-                        try (FileOutputStream fos = new FileOutputStream(filename)) {
-                            byte[] imageBytes = java.util.Base64.getDecoder().decode(base64);
-                            fos.write(imageBytes);
-                        }
-                        screenshotPath = filename;
-                    }
-                } catch (Exception ex) {
-                    screenshotPath = null;
-                }
-                String failMessage = e.getMessage();
-                if (failMessage != null) {
-                    int idx = failMessage.indexOf('\n');
-                    if (idx > 0) failMessage = failMessage.substring(0, idx);
-                    if (failMessage.length() > 500) failMessage = failMessage.substring(0, 500) + "...";
-                }
+                String failMessage = extractErrorMessage(e);
+                logger.error("[{}] Action '{}' failed with error: {}", timestamp, actionType, failMessage, e);
+                String screenshotPath = captureScreenshot(actionType);
                 results.add(new ActionResult(actionType, "failure", failMessage, screenshotPath));
+                if (stopOnFailure) {
+                    failed = true;
+                }
             }
         }
         return results;
+    }
+
+    private String captureScreenshot(String actionType) {
+        try {
+            String screenshotsDir = "screenshots";
+            Files.createDirectories(Paths.get(screenshotsDir));
+            String filename = actionType + "_" + UUID.randomUUID() + ".png";
+            String filePath = screenshotsDir + "/" + filename;
+            String base64 = SeleniumUtils.takeScreenshotAsBase64(driver);
+            if (base64 != null) {
+                try (FileOutputStream fos = new FileOutputStream(filePath)) {
+                    byte[] imageBytes = java.util.Base64.getDecoder().decode(base64);
+                    fos.write(imageBytes);
+                }
+                logger.info("Screenshot saved at: {}", filePath);
+                // Return the path with leading forward slash for proper URL mapping
+                return "/" + filePath;
+            }
+        } catch (Exception e) {
+            logger.error("Failed to capture screenshot for action '{}': {}", actionType, e.getMessage(), e);
+        }
+        return null;
+    }
+
+    // Keep the original method for backward compatibility
+    public List<ActionResult> executeActions(List<Map<String, Object>> actions) {
+        return executeActions(actions, false);
     }
 
     private String getActionType(Map<String, Object> action) {
@@ -248,6 +276,7 @@ public class SeleniumActionExecutor {
         SeleniumUtils.doubleClickElement(driver, element);
     }
 
+    @SuppressWarnings("unchecked")
     private void executeDragAndDropAction(Map<String, Object> action) {
         Map<String, String> sourceLocator = (Map<String, String>) action.get("sourceLocator");
         Map<String, String> targetLocator = (Map<String, String>) action.get("targetLocator");
@@ -279,5 +308,14 @@ public class SeleniumActionExecutor {
             case "partiallinktext" -> By.partialLinkText(value);
             default -> throw new IllegalArgumentException("Unsupported locator type: " + type);
         };
+    }
+
+    private String extractErrorMessage(Exception e) {
+        String fullMessage = e.getMessage();
+        if (fullMessage != null) {
+            int newlineIndex = fullMessage.indexOf("\n");
+            return newlineIndex != -1 ? fullMessage.substring(0, newlineIndex) : fullMessage;
+        }
+        return "An unknown error occurred.";
     }
 }

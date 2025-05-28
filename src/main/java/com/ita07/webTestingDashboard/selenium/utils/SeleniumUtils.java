@@ -119,6 +119,7 @@ public class SeleniumUtils {
             Thread.sleep(seconds * 1000L); // Convert seconds to milliseconds
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt(); // Restore the interrupted status
+            logger.error("Thread was interrupted during wait.", e);
             throw new RuntimeException("Thread was interrupted during wait.", e);
         }
     }
@@ -130,7 +131,7 @@ public class SeleniumUtils {
             SeleniumUtils.clickElement(acceptButton);
             logger.info("Consent popup accepted.");
         } catch (Exception e) {
-            logger.info("Consent popup not found or already accepted.");
+            logger.info("Consent popup not found or already accepted.", e);
         }
     }
 
