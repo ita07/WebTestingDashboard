@@ -12,6 +12,7 @@ import com.ita07.webTestingDashboard.service.TestService;
 import com.ita07.webTestingDashboard.model.TestRun;
 import com.ita07.webTestingDashboard.repository.TestRunRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.Getter;
 import org.openqa.selenium.WebDriver;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -20,18 +21,37 @@ import org.slf4j.LoggerFactory;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
+import jakarta.annotation.PreDestroy;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import org.springframework.beans.factory.annotation.Value;
 
 @Service
 public class TestServiceImpl implements TestService {
     private static final Logger logger = LoggerFactory.getLogger(TestServiceImpl.class);
+    // Add a fixed thread pool for parallel test execution
+    private static int MAX_PARALLEL_TESTS = 4; // Default, can be overridden by property
+    // Expose the executor for status endpoint
+    @Getter
+    private static final ThreadPoolExecutor executorService = new ThreadPoolExecutor(
+            MAX_PARALLEL_TESTS, // corePoolSize
+            MAX_PARALLEL_TESTS, // maximumPoolSize
+            60L, // keepAliveTime
+            TimeUnit.SECONDS,
+            new LinkedBlockingQueue<>(100) // Bounded queue, adjust capacity as needed
+    );
+    // Fast, non-blocking counter for queued test runs
+    private static final AtomicInteger queuedCount = new AtomicInteger(0);
 
     @Autowired
     private TestRunRepository testRunRepository;
@@ -39,10 +59,49 @@ public class TestServiceImpl implements TestService {
     private TemplateEngine templateEngine;
     @Autowired
     private TestDataService testDataService;
+    @Value("${parallel.tests.max:4}")
+    public void setMaxParallelTests(int max) {
+        MAX_PARALLEL_TESTS = max;
+        executorService.setCorePoolSize(max);
+        executorService.setMaximumPoolSize(max);
+    }
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @PreDestroy
+    public void shutdownExecutor() {
+        logger.info("Shutting down ExecutorService for parallel test execution...");
+        executorService.shutdown();
+    }
 
     @Override
     public List<ActionResult> executeActions(TestRequest request) {
+        queuedCount.incrementAndGet();
+        try {
+            Future<List<ActionResult>> future = executorService.submit(() -> {
+                queuedCount.decrementAndGet();
+                try {
+                    return executeActionsInternal(request);
+                } catch (Exception e) {
+                    logger.error("Exception in parallel test execution thread", e);
+                    // Optionally, return a failed ActionResult for the whole test run
+                    List<ActionResult> failed = new ArrayList<>();
+                    failed.add(new ActionResult("testRun", "failure", "Test run failed: " + e.getMessage(), null, 0, "Exception: " + e.toString()));
+                    return failed;
+                }
+            });
+            return future.get(); // Wait for completion and return results
+        } catch (Exception e) {
+            logger.error("Parallel test execution failed", e);
+            throw new RuntimeException("Parallel test execution failed: " + e.getMessage(), e);
+        }
+    }
+
+    public static int getQueuedCount() {
+        return queuedCount.get();
+    }
+
+    // The original logic moved to a new method
+    private List<ActionResult> executeActionsInternal(TestRequest request) {
         validateTestRequest(request);
         String browser = request.getBrowser() != null ? request.getBrowser() : "chrome";
         WebDriver driver = SeleniumConfig.createDriver(browser);
@@ -325,3 +384,5 @@ public class TestServiceImpl implements TestService {
         }
     }
 }
+
+
