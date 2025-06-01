@@ -2,6 +2,8 @@ package com.ita07.webTestingDashboard.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import com.vladmihalcea.hibernate.type.json.JsonType;
+import org.hibernate.annotations.Type;
 import java.time.LocalDateTime;
 
 @Entity
@@ -16,6 +18,7 @@ public class TestSuite {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
+    @Type(JsonType.class)
     @Column(columnDefinition = "jsonb")
     private String actionsJson; // Store actions as JSON string in jsonb column
 }

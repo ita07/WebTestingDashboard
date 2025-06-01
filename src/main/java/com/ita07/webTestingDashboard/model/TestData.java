@@ -2,6 +2,8 @@ package com.ita07.webTestingDashboard.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import com.vladmihalcea.hibernate.type.json.JsonType;
+import org.hibernate.annotations.Type;
 import java.time.LocalDateTime;
 
 @Entity
@@ -14,6 +16,7 @@ public class TestData {
     private String name;
     private String description;
 
+    @Type(JsonType.class)
     @Column(columnDefinition = "jsonb")
     private String dataJson; // Store data as JSON string in jsonb column
 
