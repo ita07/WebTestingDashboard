@@ -16,7 +16,6 @@ public class TestSuite {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    @Lob
-    private String actionsJson; // Store actions as JSON string
+    @Column(columnDefinition = "jsonb")
+    private String actionsJson; // Store actions as JSON string in jsonb column
 }
-

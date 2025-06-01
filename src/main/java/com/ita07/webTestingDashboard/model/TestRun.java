@@ -15,10 +15,9 @@ public class TestRun {
     private String browser;
     private LocalDateTime executedAt;
 
-    @Lob
-    private String actionsJson; // Store actions as JSON string
+    @Column(columnDefinition = "jsonb")
+    private String actionsJson; // Store actions as JSON string in jsonb column
 
-    @Lob
-    private String resultsJson; // Store results as JSON string
+    @Column(columnDefinition = "jsonb")
+    private String resultsJson; // Store results as JSON string in jsonb column
 }
-

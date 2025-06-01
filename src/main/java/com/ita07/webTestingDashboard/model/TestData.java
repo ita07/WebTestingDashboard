@@ -14,8 +14,8 @@ public class TestData {
     private String name;
     private String description;
 
-    @Column(columnDefinition = "TEXT")
-    private String dataJson; // Store data as JSON string
+    @Column(columnDefinition = "jsonb")
+    private String dataJson; // Store data as JSON string in jsonb column
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
