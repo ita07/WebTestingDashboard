@@ -1,6 +1,8 @@
 package com.ita07.webTestingDashboard.selenium.utils;
 
 import com.ita07.webTestingDashboard.model.ActionResult;
+import com.ita07.webTestingDashboard.selenium.abstractions.SeleniumAction;
+import com.ita07.webTestingDashboard.selenium.actions.*;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
@@ -12,10 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 public class SeleniumActionExecutor {
     private static final Logger logger = LoggerFactory.getLogger(SeleniumActionExecutor.class);
@@ -23,8 +22,25 @@ public class SeleniumActionExecutor {
     private final WebDriver driver;
     private static final int DEFAULT_TIMEOUT = 10;
 
+    // Action registry
+    private final Map<String, SeleniumAction> actionRegistry = new HashMap<>();
+
     public SeleniumActionExecutor(WebDriver driver) {
         this.driver = driver;
+        // Register all actions
+        actionRegistry.put("navigate", new NavigateAction());
+        actionRegistry.put("click", new ClickAction());
+        actionRegistry.put("type", new TypeAction());
+        actionRegistry.put("wait", new WaitAction());
+        actionRegistry.put("hover", new HoverAction());
+        actionRegistry.put("scroll", new ScrollAction());
+        actionRegistry.put("upload", new UploadAction());
+        actionRegistry.put("assert", new AssertAction());
+        actionRegistry.put("select", new SelectAction());
+        actionRegistry.put("check", new CheckAction());
+        actionRegistry.put("uncheck", new UncheckAction());
+        actionRegistry.put("doubleclick", new DoubleClickAction());
+        actionRegistry.put("draganddrop", new DragAndDropAction());
     }
 
     public List<ActionResult> executeActions(List<Map<String, Object>> actions, boolean stopOnFailure) {
@@ -46,53 +62,26 @@ public class SeleniumActionExecutor {
             }
             try {
                 logger.info("[{}] Starting action: {} with parameters: {}", timestamp, actionType, action);
-                switch (actionType) {
-                    case "navigate":
-                        executeNavigateAction(action);
-                        break;
-                    case "click":
-                        executeClickAction(action);
-                        break;
-                    case "type":
-                        executeTypeAction(action);
-                        break;
-                    case "wait":
-                        executeWaitAction(action);
-                        break;
-                    case "hover":
-                        executeHoverAction(action);
-                        break;
-                    case "scroll":
-                        executeScrollAction(action);
-                        break;
-                    case "upload":
-                        executeUploadAction(action);
-                        break;
-                    case "assert":
-                        executeAssertAction(action);
-                        break;
-                    case "select":
-                        executeSelectAction(action);
-                        break;
-                    case "check":
-                        executeCheckAction(action);
-                        break;
-                    case "uncheck":
-                        executeUncheckAction(action);
-                        break;
-                    case "doubleclick":
-                        executeDoubleClickAction(action);
-                        break;
-                    case "draganddrop":
-                        executeDragAndDropAction(action);
-                        break;
-                    default:
-                        throw new IllegalArgumentException("Unsupported action: " + actionType);
+                SeleniumAction handler = actionRegistry.get(actionType.toLowerCase());
+                if (handler == null) {
+                    throw new IllegalArgumentException("Unsupported action: " + actionType);
                 }
+                ActionResult result = handler.execute(driver, action);
                 endTime = System.currentTimeMillis();
                 durationMillis = endTime - startTime;
-                logger.info("[{}] Action '{}' executed successfully in {} ms.", timestamp, actionType, durationMillis);
-                results.add(new ActionResult(actionType, "success", "Action executed successfully.", null, durationMillis, details));
+                // If the handler did not set executionTimeMillis, set it here
+                if (result.getExecutionTimeMillis() == 0) {
+                    result.setExecutionTimeMillis(durationMillis);
+                }
+                logger.info("[{}] Action '{}' executed with status '{}' in {} ms.", timestamp, actionType, result.getStatus(), durationMillis);
+                if ("failure".equalsIgnoreCase(result.getStatus())) {
+                    String screenshotPath = captureScreenshot(actionType);
+                    result.setScreenshotPath(screenshotPath);
+                }
+                results.add(result);
+                if ("failure".equalsIgnoreCase(result.getStatus()) && stopOnFailure) {
+                    failed = true;
+                }
             } catch (Exception e) {
                 endTime = System.currentTimeMillis();
                 durationMillis = endTime - startTime;
@@ -139,192 +128,25 @@ public class SeleniumActionExecutor {
         return ((String) action.get("action")).toLowerCase();
     }
 
-    private void executeNavigateAction(Map<String, Object> action) {
-        String url = (String) action.get("url");
-        SeleniumUtils.navigateTo(driver, url);
-    }
+    public static String extractErrorMessage(Throwable e) { // Changed Exception to Throwable
+        if (e == null) return "An unknown error occurred.";
 
-    private void executeClickAction(Map<String, Object> action) {
-        Map<String, String> locator = getLocatorFromAction(action);
-        By by = getLocator(locator);
-        WebElement clickableElement = SeleniumUtils.waitForElementVisible(driver, by, DEFAULT_TIMEOUT);
-        SeleniumUtils.clickElement(clickableElement);
-    }
-
-    private void executeTypeAction(Map<String, Object> action) {
-        Map<String, String> locator = getLocatorFromAction(action);
-        String text = (String) action.get("text");
-        By by = getLocator(locator);
-        WebElement inputElement = SeleniumUtils.waitForElementVisible(driver, by, DEFAULT_TIMEOUT);
-        SeleniumUtils.enterText(inputElement, text);
-    }
-
-    private void executeWaitAction(Map<String, Object> action) {
-        Object secondsObj = action.get("seconds");
-        int seconds = (secondsObj instanceof Number) ? ((Number) secondsObj).intValue() : Integer.parseInt(secondsObj.toString());
-        SeleniumUtils.waitSeconds(seconds);
-    }
-
-    private void executeHoverAction(Map<String, Object> action) {
-        Map<String, String> hoverLocator = getLocatorFromAction(action);
-        By by = getLocator(hoverLocator);
-        WebElement hoverElement = SeleniumUtils.waitForElementVisible(driver, by, DEFAULT_TIMEOUT);
-        SeleniumUtils.hoverOverElement(driver, hoverElement);
-    }
-
-    private void executeScrollAction(Map<String, Object> action) {
-        Map<String, String> scrollLocator = getLocatorFromAction(action);
-        // Scroll to an element
-        By by = getLocator(scrollLocator);
-        WebElement scrollElement = SeleniumUtils.waitForElementVisible(driver, by, DEFAULT_TIMEOUT);
-        SeleniumUtils.scrollToElement(driver, scrollElement);
-    }
-
-    private void executeUploadAction(Map<String, Object> action) {
-        Map<String, String> uploadLocator = getLocatorFromAction(action);
-        String filePath = (String) action.get("filePath");
-        By by = getLocator(uploadLocator);
-        WebElement uploadElement = SeleniumUtils.waitForElementVisible(driver, by, DEFAULT_TIMEOUT);
-        SeleniumUtils.uploadFile(uploadElement, filePath);
-    }
-
-    private void executeAssertAction(Map<String, Object> action) {
-        String condition = ((String) action.get("condition")).toLowerCase();
-        switch (condition) {
-            case "text":
-                executeTextAssertion(action);
-                break;
-            case "title":
-                executeTitleAssertion(action);
-                break;
-            case "elementpresent":
-                executeElementPresentAssertion(action);
-                break;
-            case "elementvisible":
-                executeElementVisibleAssertion(action);
-                break;
-            case "elementenabled":
-                executeElementEnabledAssertion(action);
-                break;
-            case "attributevalue":
-                executeAttributeValueAssertion(action);
-                break;
-            default:
-                throw new IllegalArgumentException("Unsupported assertion condition: " + condition);
+        Throwable rootCause = e;
+        while (rootCause.getCause() != null) {
+            rootCause = rootCause.getCause();
         }
-    }
 
-    private void executeTextAssertion(Map<String, Object> action) {
-        Map<String, String> textLocator = getLocatorFromAction(action);
-        String expectedText = (String) action.get("expected");
-        By by = getLocator(textLocator);
-        WebElement element = SeleniumUtils.waitForElementVisible(driver, by, DEFAULT_TIMEOUT);
-        SeleniumUtils.assertTextEquals(element, expectedText);
-    }
-
-    private void executeTitleAssertion(Map<String, Object> action) {
-        String expectedTitle = (String) action.get("expected");
-        SeleniumUtils.assertPageTitleEquals(driver, expectedTitle);
-    }
-
-    private void executeElementPresentAssertion(Map<String, Object> action) {
-        Map<String, String> locator = getLocatorFromAction(action);
-        By by = getLocator(locator);
-        SeleniumUtils.assertElementPresent(driver, by);
-    }
-
-    private void executeElementVisibleAssertion(Map<String, Object> action) {
-        Map<String, String> locator = getLocatorFromAction(action);
-        By by = getLocator(locator);
-        SeleniumUtils.assertElementVisible(driver, by);
-    }
-
-    private void executeElementEnabledAssertion(Map<String, Object> action) {
-        Map<String, String> locator = getLocatorFromAction(action);
-        By by = getLocator(locator);
-        SeleniumUtils.assertElementEnabled(driver, by);
-    }
-
-    private void executeAttributeValueAssertion(Map<String, Object> action) {
-        Map<String, String> locator = getLocatorFromAction(action);
-        String attribute = (String) action.get("attribute");
-        String expected = (String) action.get("expected");
-        By by = getLocator(locator);
-        WebElement element = SeleniumUtils.waitForElementVisible(driver, by, DEFAULT_TIMEOUT);
-        SeleniumUtils.assertAttributeValue(element, attribute, expected);
-    }
-
-    private void executeSelectAction(Map<String, Object> action) {
-        Map<String, String> locator = getLocatorFromAction(action);
-        String selectBy = ((String) action.get("selectBy")).toLowerCase();
-        String option = (String) action.get("option");
-        By by = getLocator(locator);
-        WebElement selectElement = SeleniumUtils.waitForElementVisible(driver, by, DEFAULT_TIMEOUT);
-        SeleniumUtils.selectDropdownOption(selectElement, selectBy, option);
-    }
-
-    private void executeCheckAction(Map<String, Object> action) {
-        Map<String, String> locator = getLocatorFromAction(action);
-        By by = getLocator(locator);
-        WebElement element = SeleniumUtils.waitForElementVisible(driver, by, DEFAULT_TIMEOUT);
-        SeleniumUtils.checkElement(element);
-    }
-
-    private void executeUncheckAction(Map<String, Object> action) {
-        Map<String, String> locator = getLocatorFromAction(action);
-        By by = getLocator(locator);
-        WebElement element = SeleniumUtils.waitForElementVisible(driver, by, DEFAULT_TIMEOUT);
-        SeleniumUtils.uncheckElement(element);
-    }
-
-    private void executeDoubleClickAction(Map<String, Object> action) {
-        Map<String, String> locator = getLocatorFromAction(action);
-        By by = getLocator(locator);
-        WebElement element = SeleniumUtils.waitForElementVisible(driver, by, DEFAULT_TIMEOUT);
-        SeleniumUtils.doubleClickElement(driver, element);
-    }
-
-    @SuppressWarnings("unchecked")
-    private void executeDragAndDropAction(Map<String, Object> action) {
-        Map<String, String> sourceLocator = (Map<String, String>) action.get("sourceLocator");
-        Map<String, String> targetLocator = (Map<String, String>) action.get("targetLocator");
-        By sourceBy = getLocator(sourceLocator);
-        By targetBy = getLocator(targetLocator);
-        WebElement sourceElement = SeleniumUtils.waitForElementVisible(driver, sourceBy, DEFAULT_TIMEOUT);
-        WebElement targetElement = SeleniumUtils.waitForElementVisible(driver, targetBy, DEFAULT_TIMEOUT);
-        SeleniumUtils.dragAndDropElement(driver, sourceElement, targetElement);
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, String> getLocatorFromAction(Map<String, Object> action) {
-        // Validation is already handled in the service layer
-        return (Map<String, String>) action.get("locator");
-    }
-
-    private By getLocator(Map<String, String> locator) {
-        String type = locator.get("type");
-        String value = locator.get("value");
-
-        return switch (type.toLowerCase()) {
-            case "id" -> By.id(value);
-            case "name" -> By.name(value);
-            case "xpath" -> By.xpath(value);
-            case "cssselector" -> By.cssSelector(value);
-            case "classname" -> By.className(value);
-            case "tagname" -> By.tagName(value);
-            case "linktext" -> By.linkText(value);
-            case "partiallinktext" -> By.partialLinkText(value);
-            default -> throw new IllegalArgumentException("Unsupported locator type: " + type);
-        };
-    }
-
-    private String extractErrorMessage(Exception e) {
-        String fullMessage = e.getMessage();
-        if (fullMessage != null) {
-            int newlineIndex = fullMessage.indexOf("\n");
-            return newlineIndex != -1 ? fullMessage.substring(0, newlineIndex) : fullMessage;
+        String message = rootCause.getMessage();
+        if (message == null || message.isBlank()) {
+            return rootCause.getClass().getSimpleName(); // Fallback to class name if message is empty
         }
-        return "An unknown error occurred.";
+
+        // Take the first line of the message
+        int newlineIndex = message.indexOf('\n');
+        if (newlineIndex > 0) {
+            return message.substring(0, newlineIndex).trim();
+        }
+        return message.trim(); // Return the trimmed message if no newline
     }
 
     private String buildDetailsString(String actionType, Map<String, Object> action) {

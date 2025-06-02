@@ -8,6 +8,8 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Map;
+
 public class SeleniumUtils {
 
     private static final Logger logger = LoggerFactory.getLogger(SeleniumUtils.class);
@@ -186,5 +188,36 @@ public class SeleniumUtils {
             return ((TakesScreenshot) driver).getScreenshotAs(org.openqa.selenium.OutputType.BASE64);
         }
         return null; // Or throw an exception if screenshot capability is essential
+    }
+
+    /**
+     * Converts a locator map (with keys 'type' and 'value') to a Selenium By object.
+     * Supported types: id, name, xpath, cssSelector, className, tagName, linkText, partialLinkText
+     */
+    public static By getByFromLocator(Map<String, String> locator) {
+        if (locator == null || locator.get("type") == null || locator.get("value") == null) {
+            throw new IllegalArgumentException("Locator map must have 'type' and 'value' keys.");
+        }
+        String type = locator.get("type").toLowerCase();
+        String value = locator.get("value");
+        return switch (type) {
+            case "id" -> By.id(value);
+            case "name" -> By.name(value);
+            case "xpath" -> By.xpath(value);
+            case "cssselector" -> By.cssSelector(value);
+            case "classname" -> By.className(value);
+            case "tagname" -> By.tagName(value);
+            case "linktext" -> By.linkText(value);
+            case "partiallinktext" -> By.partialLinkText(value);
+            default -> throw new IllegalArgumentException("Unsupported locator type: " + type);
+        };
+    }
+
+    /**
+     * Clears all browser cookies
+     */
+    public static void clearBrowserCookies(WebDriver driver) {
+        driver.manage().deleteAllCookies();
+        logger.info("Cleared all browser cookies");
     }
 }
