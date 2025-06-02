@@ -19,8 +19,10 @@ public class ClickAction implements SeleniumAction {
             if (locator == null || locator.get("type") == null || locator.get("value") == null) {
                 return new ActionResult("click", "failure", "Missing locator parameters.", System.currentTimeMillis() - start, params.toString());
             }
+            int timeout = SeleniumUtils.getTimeout(params, 10);
             By by = SeleniumUtils.getByFromLocator(locator);
-            WebElement element = SeleniumUtils.findElement(driver, by);
+            // Use explicit wait for clickability
+            WebElement element = SeleniumUtils.waitForElementClickable(driver, by, timeout);
             SeleniumUtils.clickElement(element);
             return new ActionResult("click", "success", "Clicked element.", System.currentTimeMillis() - start, locator.toString());
         } catch (Exception e) {

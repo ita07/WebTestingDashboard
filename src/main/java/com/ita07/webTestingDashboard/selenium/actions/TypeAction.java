@@ -20,8 +20,9 @@ public class TypeAction implements SeleniumAction {
             if (locator == null || locator.get("type") == null || locator.get("value") == null || text == null) {
                 return new ActionResult("type", "failure", "Missing locator or text parameter.", System.currentTimeMillis() - start, details);
             }
+            int timeout = SeleniumUtils.getTimeout(params, 10);
             By by = SeleniumUtils.getByFromLocator(locator);
-            WebElement element = SeleniumUtils.findElement(driver, by);
+            WebElement element = SeleniumUtils.waitForElementVisible(driver, by, timeout);
             SeleniumUtils.enterText(element, text);
             return new ActionResult("type", "success", "Typed text: '" + text + "'", System.currentTimeMillis() - start, "locator: " + locator + ", text: " + text);
         } catch (Exception e) {

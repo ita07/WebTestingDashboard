@@ -101,6 +101,13 @@
 <body>
 <h1>Selenium Automation</h1>
 
+<!-- Advanced Mode Toggle -->
+<div style="margin-bottom: 16px;">
+    <label style="font-weight: bold;">
+        <input type="checkbox" id="advancedModeToggle" onchange="toggleAdvancedMode()"> Show Advanced Options
+    </label>
+</div>
+
 <!-- Test Data Management Section -->
 <div id="testDataSection">
     <h2>Test Data Management</h2>
@@ -294,6 +301,16 @@
                 textInput.oninput = updateJsonPreview;
                 block.appendChild(textInput);
             }
+            // Timeout input for all relevant actions
+            const timeoutInput = document.createElement('input');
+            timeoutInput.type = 'number';
+            timeoutInput.placeholder = 'Timeout (seconds, optional)';
+            timeoutInput.min = '1';
+            timeoutInput.style.marginLeft = '10px';
+            timeoutInput.oninput = updateJsonPreview;
+            timeoutInput.classList.add('advanced-option');
+            timeoutInput.style.display = document.getElementById('advancedModeToggle')?.checked ? '' : 'none';
+            block.appendChild(timeoutInput);
         } else if (action === 'wait') {
             const secondsInput = document.createElement('input');
             secondsInput.type = 'number';
@@ -334,6 +351,17 @@
             optionInput.placeholder = 'Option';
             optionInput.oninput = updateJsonPreview;
             block.appendChild(optionInput);
+
+            // Timeout input for select
+            const timeoutInput = document.createElement('input');
+            timeoutInput.type = 'number';
+            timeoutInput.placeholder = 'Timeout (seconds, optional)';
+            timeoutInput.min = '1';
+            timeoutInput.style.marginLeft = '10px';
+            timeoutInput.oninput = updateJsonPreview;
+            timeoutInput.classList.add('advanced-option');
+            timeoutInput.style.display = document.getElementById('advancedModeToggle')?.checked ? '' : 'none';
+            block.appendChild(timeoutInput);
         } else if (action === 'upload') {
             // Locator type dropdown
             const locatorTypeInput = document.createElement('select');
@@ -401,6 +429,17 @@
             attributeInput.placeholder = 'Attribute (optional)';
             attributeInput.oninput = updateJsonPreview;
             block.appendChild(attributeInput);
+
+            // Timeout input for assert
+            const timeoutInput = document.createElement('input');
+            timeoutInput.type = 'number';
+            timeoutInput.placeholder = 'Timeout (seconds, optional)';
+            timeoutInput.min = '1';
+            timeoutInput.style.marginLeft = '10px';
+            timeoutInput.oninput = updateJsonPreview;
+            timeoutInput.classList.add('advanced-option');
+            timeoutInput.style.display = document.getElementById('advancedModeToggle')?.checked ? '' : 'none';
+            block.appendChild(timeoutInput);
         } else if (action === 'draganddrop') {
             // Source locator type dropdown
             const sourceLocatorTypeInput = document.createElement('select');
@@ -443,6 +482,17 @@
             targetLocatorValueInput.placeholder = 'Target Locator Value';
             targetLocatorValueInput.oninput = updateJsonPreview;
             block.appendChild(targetLocatorValueInput);
+
+            // Timeout input for draganddrop
+            const timeoutInput = document.createElement('input');
+            timeoutInput.type = 'number';
+            timeoutInput.placeholder = 'Timeout (seconds, optional)';
+            timeoutInput.min = '1';
+            timeoutInput.style.marginLeft = '10px';
+            timeoutInput.oninput = updateJsonPreview;
+            timeoutInput.classList.add('advanced-option');
+            timeoutInput.style.display = document.getElementById('advancedModeToggle')?.checked ? '' : 'none';
+            block.appendChild(timeoutInput);
         }
 
         return block;
@@ -472,6 +522,13 @@
                 };
                 if (action === 'type') {
                     actionData.text = inputs[1].value;
+                    if (inputs[2] && inputs[2].value) {
+                        actionData.timeout = parseInt(inputs[2].value);
+                    }
+                } else {
+                    if (inputs[1] && inputs[1].value) {
+                        actionData.timeout = parseInt(inputs[1].value);
+                    }
                 }
             } else if (action === 'wait') {
                 actionData.seconds = inputs[0].value;
@@ -482,6 +539,9 @@
                 };
                 actionData.selectBy = inputs[1].value;
                 actionData.option = inputs[2].value;
+                if (inputs[3] && inputs[3].value) {
+                    actionData.timeout = parseInt(inputs[3].value);
+                }
             } else if (action === 'upload') {
                 actionData.locator = {
                     type: block.querySelector('select').value,
@@ -496,6 +556,9 @@
                 };
                 actionData.expected = inputs[2].value;
                 actionData.attribute = inputs[3].value;
+                if (inputs[4] && inputs[4].value) {
+                    actionData.timeout = parseInt(inputs[4].value);
+                }
             } else if (action === 'draganddrop') {
                 actionData.sourceLocator = {
                     type: block.querySelectorAll('select')[0].value,
@@ -505,6 +568,9 @@
                     type: block.querySelectorAll('select')[1].value,
                     value: inputs[1].value
                 };
+                if (inputs[2] && inputs[2].value) {
+                    actionData.timeout = parseInt(inputs[2].value);
+                }
             }
 
             actions.push(actionData);
@@ -953,10 +1019,20 @@
         }
     }
 
+    // Advanced Mode toggle logic
+    function toggleAdvancedMode() {
+        const showAdvanced = document.getElementById('advancedModeToggle').checked;
+        document.querySelectorAll('.advanced-option').forEach(el => {
+            el.style.display = showAdvanced ? '' : 'none';
+        });
+    }
+
     // Load test data on page load
     document.addEventListener('DOMContentLoaded', () => {
         fetchTestData();
         // ... existing DOMContentLoaded handlers ...
+        // Ensure advanced options are hidden by default
+        toggleAdvancedMode();
     });
 </script>
 </body>

@@ -24,11 +24,11 @@ public class DragAndDropAction implements SeleniumAction {
                     System.currentTimeMillis() - start, details);
             }
 
+            int timeout = SeleniumUtils.getTimeout(params, 10);
             By sourceBy = SeleniumUtils.getByFromLocator(sourceLocator);
             By targetBy = SeleniumUtils.getByFromLocator(targetLocator);
-
-            WebElement sourceElement = SeleniumUtils.findElement(driver, sourceBy);
-            WebElement targetElement = SeleniumUtils.findElement(driver, targetBy);
+            WebElement sourceElement = SeleniumUtils.waitForElementVisible(driver, sourceBy, timeout);
+            WebElement targetElement = SeleniumUtils.waitForElementVisible(driver, targetBy, timeout);
 
             SeleniumUtils.dragAndDropElement(driver, sourceElement, targetElement);
             return new ActionResult("draganddrop", "success", "Dragged and dropped element successfully.",

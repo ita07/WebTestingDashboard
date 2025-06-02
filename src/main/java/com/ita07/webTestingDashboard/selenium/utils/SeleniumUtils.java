@@ -214,6 +214,26 @@ public class SeleniumUtils {
     }
 
     /**
+     * Extracts a timeout value from the params map, or returns the default if not present or invalid.
+     */
+    public static int getTimeout(Map<String, Object> params, int defaultTimeout) {
+        if (params == null) return defaultTimeout;
+        if (params.containsKey("timeout")) {
+            try {
+                Object timeoutObj = params.get("timeout");
+                if (timeoutObj instanceof Number) {
+                    return ((Number) timeoutObj).intValue();
+                } else {
+                    return Integer.parseInt(timeoutObj.toString());
+                }
+            } catch (Exception e) {
+                // Ignore and use default
+            }
+        }
+        return defaultTimeout;
+    }
+
+    /**
      * Clears all browser cookies
      */
     public static void clearBrowserCookies(WebDriver driver) {

@@ -25,6 +25,7 @@ public class AssertAction implements SeleniumAction {
             String expected = (String) params.get("expected");
             String attribute = (String) params.get("attribute");
             String successMessage = "Assertion passed: " + condition;
+            int timeout = SeleniumUtils.getTimeout(params, 10);
 
             switch (condition) {
                 case "text" -> {
@@ -32,7 +33,7 @@ public class AssertAction implements SeleniumAction {
                         return new ActionResult("assert", "failure", "Missing locator or expected value for text assertion.", System.currentTimeMillis() - start, details);
                     }
                     By by = SeleniumUtils.getByFromLocator(locator);
-                    WebElement element = SeleniumUtils.findElement(driver, by);
+                    WebElement element = SeleniumUtils.waitForElementVisible(driver, by, timeout);
                     SeleniumUtils.assertTextEquals(element, expected);
                     successMessage += " (expected: '" + expected + "')";
                 }
@@ -40,7 +41,18 @@ public class AssertAction implements SeleniumAction {
                     if (expected == null) {
                         return new ActionResult("assert", "failure", "Missing expected value for title assertion.", System.currentTimeMillis() - start, details);
                     }
-                    SeleniumUtils.assertPageTitleEquals(driver, expected);
+                    // Wait for title to match expected within timeout
+                    boolean matched = false;
+                    for (int i = 0; i < timeout; i++) {
+                        if (driver.getTitle().equals(expected)) {
+                            matched = true;
+                            break;
+                        }
+                        Thread.sleep(1000);
+                    }
+                    if (!matched) {
+                        throw new AssertionError("Expected title: " + expected + ", but found: " + driver.getTitle());
+                    }
                     successMessage += " (expected: '" + expected + "')";
                 }
                 case "elementpresent" -> {
@@ -48,28 +60,44 @@ public class AssertAction implements SeleniumAction {
                         return new ActionResult("assert", "failure", "Missing locator for elementPresent assertion.", System.currentTimeMillis() - start, details);
                     }
                     By by = SeleniumUtils.getByFromLocator(locator);
-                    SeleniumUtils.assertElementPresent(driver, by);
+                    boolean found = false;
+                    for (int i = 0; i < timeout; i++) {
+                        if (!driver.findElements(by).isEmpty()) {
+                            found = true;
+                            break;
+                        }
+                        Thread.sleep(1000);
+                    }
+                    if (!found) {
+                        throw new AssertionError("Element not present: " + by);
+                    }
                 }
                 case "elementvisible" -> {
                     if (locator == null) {
                         return new ActionResult("assert", "failure", "Missing locator for elementVisible assertion.", System.currentTimeMillis() - start, details);
                     }
                     By by = SeleniumUtils.getByFromLocator(locator);
-                    SeleniumUtils.assertElementVisible(driver, by);
+                    WebElement element = SeleniumUtils.waitForElementVisible(driver, by, timeout);
+                    if (!element.isDisplayed()) {
+                        throw new AssertionError("Element is not visible: " + by);
+                    }
                 }
                 case "elementenabled" -> {
                     if (locator == null) {
                         return new ActionResult("assert", "failure", "Missing locator for elementEnabled assertion.", System.currentTimeMillis() - start, details);
                     }
                     By by = SeleniumUtils.getByFromLocator(locator);
-                    SeleniumUtils.assertElementEnabled(driver, by);
+                    WebElement element = SeleniumUtils.waitForElementVisible(driver, by, timeout);
+                    if (!element.isEnabled()) {
+                        throw new AssertionError("Element is not enabled: " + by);
+                    }
                 }
                 case "attributevalue" -> {
                     if (locator == null || attribute == null || expected == null) {
                         return new ActionResult("assert", "failure", "Missing locator, attribute, or expected value for attributeValue assertion.", System.currentTimeMillis() - start, details);
                     }
                     By by = SeleniumUtils.getByFromLocator(locator);
-                    WebElement element = SeleniumUtils.findElement(driver, by);
+                    WebElement element = SeleniumUtils.waitForElementVisible(driver, by, timeout);
                     SeleniumUtils.assertAttributeValue(element, attribute, expected);
                     successMessage += " (attribute: '" + attribute + "', expected: '" + expected + "')";
                 }

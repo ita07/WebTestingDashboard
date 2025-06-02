@@ -21,8 +21,9 @@ public class SelectAction implements SeleniumAction {
             if (locator == null || locator.get("type") == null || locator.get("value") == null || selectBy == null || option == null) {
                 return new ActionResult("select", "failure", "Missing locator, selectBy, or option parameter.", System.currentTimeMillis() - start, details);
             }
+            int timeout = SeleniumUtils.getTimeout(params, 10);
             By by = SeleniumUtils.getByFromLocator(locator);
-            WebElement element = SeleniumUtils.findElement(driver, by);
+            WebElement element = SeleniumUtils.waitForElementVisible(driver, by, timeout);
             SeleniumUtils.selectDropdownOption(element, selectBy, option);
             return new ActionResult("select", "success", "Selected option '" + option + "' by " + selectBy, System.currentTimeMillis() - start, "locator: " + locator + ", selectBy: " + selectBy + ", option: " + option);
         } catch (Exception e) {

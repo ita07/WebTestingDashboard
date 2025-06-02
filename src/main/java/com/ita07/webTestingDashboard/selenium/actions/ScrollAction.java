@@ -19,8 +19,9 @@ public class ScrollAction implements SeleniumAction {
             if (locator == null || locator.get("type") == null || locator.get("value") == null) {
                 return new ActionResult("scroll", "failure", "Missing locator parameter.", System.currentTimeMillis() - start, details);
             }
+            int timeout = SeleniumUtils.getTimeout(params, 10);
             By by = SeleniumUtils.getByFromLocator(locator);
-            WebElement element = SeleniumUtils.findElement(driver, by);
+            WebElement element = SeleniumUtils.waitForElementVisible(driver, by, timeout);
             SeleniumUtils.scrollToElement(driver, element);
             return new ActionResult("scroll", "success", "Scrolled to element.", System.currentTimeMillis() - start, "locator: " + locator);
         } catch (Exception e) {
