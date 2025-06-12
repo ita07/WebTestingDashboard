@@ -24,4 +24,7 @@ public class TestRun {
     @Type(JsonType.class)
     @Column(columnDefinition = "jsonb")
     private String resultsJson; // Store results as JSON string in jsonb column
+
+    @Column(nullable = false)
+    private String status; // Status of the test run (e.g., "running", "finished", "cancelled")
 }

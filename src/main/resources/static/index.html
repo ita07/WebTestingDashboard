@@ -168,6 +168,7 @@
 
 <!-- Results -->
 <h2>Results:</h2>
+<div id="activeRuns" style="margin-bottom: 10px;"></div>
 <pre id="results"></pre>
 
 <!-- Test Run History Section -->
@@ -633,6 +634,56 @@
         }
     }
 
+    // Track active test runs and their cancel buttons
+    let activeRuns = [];
+
+    // Add a function to render active runs and cancel buttons
+    function renderActiveRuns() {
+        const activeRunsDiv = document.getElementById('activeRuns');
+        if (!activeRunsDiv) return;
+        activeRunsDiv.innerHTML = '';
+        activeRuns.forEach(run => {
+            const runDiv = document.createElement('div');
+            runDiv.style.display = 'inline-block';
+            runDiv.style.marginRight = '10px';
+            runDiv.style.marginBottom = '5px';
+            runDiv.style.padding = '6px 10px';
+            runDiv.style.background = '#f2f2f2';
+            runDiv.style.border = '1px solid #ccc';
+            runDiv.style.borderRadius = '4px';
+            runDiv.style.fontWeight = 'bold';
+            runDiv.textContent = `Test Run #${run.id} `;
+            const cancelBtn = document.createElement('button');
+            cancelBtn.textContent = 'Cancel';
+            cancelBtn.style.background = '#dc3545';
+            cancelBtn.style.color = 'white';
+            cancelBtn.style.border = 'none';
+            cancelBtn.style.borderRadius = '3px';
+            cancelBtn.style.marginLeft = '8px';
+            cancelBtn.style.cursor = 'pointer';
+            cancelBtn.onclick = async function() {
+                cancelBtn.disabled = true;
+                cancelBtn.textContent = 'Cancelling...';
+                try {
+                    const res = await fetch(`/api/tests/cancel/${run.id}`, { method: 'POST' });
+                    if (res.ok) {
+                        runDiv.textContent = `Test Run #${run.id} cancelled.`;
+                        setTimeout(() => {
+                            activeRuns = activeRuns.filter(r => r.id !== run.id);
+                            renderActiveRuns();
+                        }, 1500);
+                    } else {
+                        cancelBtn.textContent = 'Failed';
+                    }
+                } catch {
+                    cancelBtn.textContent = 'Failed';
+                }
+            };
+            runDiv.appendChild(cancelBtn);
+            activeRunsDiv.appendChild(runDiv);
+        });
+    }
+
     // Run tests
     async function runTests() {
         if (!isValidJson) {
@@ -641,15 +692,13 @@
         }
 
         const jsonPreview = document.getElementById('jsonPreview');
-        const payload = JSON.parse(jsonPreview.value); // payload will now have testDataId if it was in the preview
-
-        // The testDataId is now part of the payload if it was in the jsonPreview,
-        // so no need to add it separately here.
-
+        const payload = JSON.parse(jsonPreview.value);
         const resultsDiv = document.getElementById('results');
-        resultsDiv.textContent = 'Running tests...';
+        resultsDiv.textContent = 'Running test...';
+        let testRunId; // Declare testRunId here to be accessible in catch/finally
 
         try {
+            // Submit the test
             const response = await fetch('/api/tests/run', {
                 method: 'POST',
                 headers: {
@@ -659,54 +708,130 @@
             });
 
             if (!response.ok) {
-                // Try to parse the error response as JSON and show the error message
-                try {
-                    const errorData = await response.json();
-                    let errorMsg = `Error: ${response.status} ${response.statusText}`;
-                    if (errorData && errorData.message) {
-                        errorMsg += `\n${errorData.message}`;
-                    }
-                    resultsDiv.textContent = errorMsg;
-                } catch (e) {
-                    // If not JSON, just show the status
-                    resultsDiv.textContent = `Error: ${response.status} ${response.statusText}`;
-                }
+                const errorData = await response.json();
+                resultsDiv.textContent = `Error: ${response.status} ${response.statusText}\\\\n${errorData.message}`;
                 return;
             }
 
-            // Parse the response as JSON
-            const results = await response.json();
-            if (Array.isArray(results)) {
-                // Build a table of results
-                let html = '<table id="resultsTable">';
-                html += '<tr><th>Action</th><th>Status</th><th>Message</th><th>Time (s)</th><th>Screenshot</th></tr>'; // Added Time (s) header
-                results.forEach(r => {
-                    html += `<tr><td>${r.action}</td><td class="${r.status}">${r.status}</td><td>${r.message}</td>`;
-                    // Show time in seconds with 2 decimals
-                    if (typeof r.executionTimeMillis === 'number') {
-                        html += `<td>${(r.executionTimeMillis / 1000).toFixed(2)}</td>`;
-                    } else {
-                        html += '<td>N/A</td>';
-                    }
-                    if (r.screenshotPath) {
-                        let screenshotUrl = r.screenshotPath;
-                        if (screenshotUrl.startsWith('screenshots/')) {
-                            screenshotUrl = '/' + screenshotUrl.replace(/\\/g, '/');
-                        }
-                        const fileName = screenshotUrl.split('/').pop();
-                        html += `<td><a href="${screenshotUrl}" target="_blank" download="${fileName}">View Screenshot</a></td>`;
-                    } else {
-                        html += '<td>N/A</td>';
-                    }
-                    html += '</tr>';
-                });
-                html += '</table>';
-                resultsDiv.innerHTML = html;
-            } else {
-                resultsDiv.textContent = JSON.stringify(results, null, 2);
+            const data = await response.json();
+            testRunId = data.testRunId; // Assign here
+
+            if (!testRunId) {
+                resultsDiv.textContent = 'Error: No test run ID returned from server';
+                return;
             }
+
+            // Add to active runs and render
+            activeRuns.push({ id: testRunId });
+            renderActiveRuns();
+
+            resultsDiv.textContent = `Test run #${testRunId} submitted. Initial check in 5 seconds...`;
+
+            // Initial delay
+            await new Promise(resolve => setTimeout(resolve, 5000)); // 5 seconds
+
+            const maxPollAttempts = 595; // Increased from 175 to 595 (approx 10 minutes total polling after initial delay)
+            let pollAttempts = 0;
+
+            while (pollAttempts < maxPollAttempts) {
+                resultsDiv.textContent = `Test run #${testRunId} in progress... Checking results (attempt ${pollAttempts + 1}/${maxPollAttempts})...`;
+                let resultResponse;
+                try {
+                    resultResponse = await fetch(`/api/tests/results/${testRunId}`);
+                } catch (networkError) {
+                    console.error(`Network error polling for testRunId ${testRunId}:`, networkError);
+                    if (pollAttempts >= maxPollAttempts - 1) { // Last attempt
+                        resultsDiv.textContent = `Network error on final attempt to get results for test run #${testRunId}.`;
+                        return; // Keep in activeRuns for potential manual cancel
+                    }
+                    resultsDiv.textContent = `Network error polling for test run #${testRunId}. Retrying...`;
+                    pollAttempts++;
+                    await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retrying on network error
+                    continue;
+                }
+
+                if (!resultResponse.ok) {
+                    console.warn(`Polling for testRunId ${testRunId}: HTTP Status ${resultResponse.status}.`);
+                     if (pollAttempts >= maxPollAttempts - 1) { // Last attempt
+                        resultsDiv.textContent = `Server error (status ${resultResponse.status}) on final attempt for test run #${testRunId}.`;
+                        return; // Keep in activeRuns
+                    }
+                    resultsDiv.textContent = `Server error (status ${resultResponse.status}) polling for test run #${testRunId}. Retrying...`;
+                    pollAttempts++;
+                    await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retrying on server error
+                    continue;
+                }
+
+                const resultData = await resultResponse.json();
+
+                if (resultData.results) {
+                    displayResults(resultData.results, resultsDiv);
+                    activeRuns = activeRuns.filter(r => r.id !== testRunId);
+                    renderActiveRuns();
+                    return; // Success
+                } else if (resultData.status === 'running' || resultData.status === 'queued') {
+                    // Test is still running or queued, continue polling. Message is updated at loop start.
+                } else if (resultData.status === 'not_found') {
+                    if (pollAttempts < 8) { // Changed from 3 to 8: Allow more retries if 'not_found' appears early
+                        console.warn(`Test run #${testRunId} status 'not_found'. Retrying poll (${pollAttempts + 1}/${maxPollAttempts})...`);
+                    } else {
+                        resultsDiv.textContent = `Results for test run #${testRunId} not found after multiple attempts. Test may have failed or results already cleared.`;
+                        activeRuns = activeRuns.filter(r => r.id !== testRunId);
+                        renderActiveRuns();
+                        return;
+                    }
+                } else {
+                    // Unknown status from payload
+                    resultsDiv.textContent = `Test run #${testRunId} has an unknown status: '${resultData.status}'.`;
+                    activeRuns = activeRuns.filter(r => r.id !== testRunId);
+                    renderActiveRuns();
+                    return;
+                }
+
+                pollAttempts++;
+                await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second for next regular poll
+            }
+
+            resultsDiv.textContent = `Timeout waiting for results of test run #${testRunId}. The test may still be running. You can try to cancel it.`;
+            // Do not remove from activeRuns here, so cancel button remains
+
         } catch (error) {
             resultsDiv.textContent = `Error: ${error.message}`;
+            // If an error occurs (e.g., network issue before or during polling)
+            // and we have a testRunId, it implies it might be active on server.
+            // The existing logic for cancel button to remain on timeout or error seems fine.
+            // If error is before testRunId is obtained, activeRuns is not affected.
+        }
+    }
+
+    // Function to display test results
+    function displayResults(results, resultsDiv) {
+        if (Array.isArray(results)) {
+            let html = '<table id="resultsTable">';
+            html += '<tr><th>Action</th><th>Status</th><th>Message</th><th>Time (s)</th><th>Screenshot</th></tr>';
+            results.forEach(r => {
+                html += `<tr><td>${r.action}</td><td class="${r.status}">${r.status}</td><td>${r.message}</td>`;
+                if (typeof r.executionTimeMillis === 'number') {
+                    html += `<td>${(r.executionTimeMillis / 1000).toFixed(2)}</td>`;
+                } else {
+                    html += '<td>N/A</td>';
+                }
+                if (r.screenshotPath) {
+                    let screenshotUrl = r.screenshotPath;
+                    if (screenshotUrl.startsWith('screenshots/')) {
+                        screenshotUrl = '/' + screenshotUrl.replace(/\\/g, '/');
+                    }
+                    const fileName = screenshotUrl.split('/').pop();
+                    html += `<td><a href="${screenshotUrl}" target="_blank" download="${fileName}">View Screenshot</a></td>`;
+                } else {
+                    html += '<td>N/A</td>';
+                }
+                html += '</tr>';
+            });
+            html += '</table>';
+            resultsDiv.innerHTML = html;
+        } else {
+            resultsDiv.textContent = JSON.stringify(results, null, 2);
         }
     }
 
@@ -1037,4 +1162,3 @@
 </script>
 </body>
 </html>
-

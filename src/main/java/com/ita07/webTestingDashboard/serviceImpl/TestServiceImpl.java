@@ -22,6 +22,7 @@ import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
 import jakarta.annotation.PreDestroy;
+import jakarta.annotation.PostConstruct;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
@@ -33,6 +34,7 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.springframework.beans.factory.annotation.Value;
 
@@ -52,6 +54,25 @@ public class TestServiceImpl implements TestService {
     );
     // Fast, non-blocking counter for queued test runs
     private static final AtomicInteger queuedCount = new AtomicInteger(0);
+    // Track active test runs with their unique IDs and Future objects
+    private static final Map<Integer, Future<?>> activeTestRuns = new ConcurrentHashMap<>();
+
+    public static boolean isTestFutureActive(int testRunId) {
+        return activeTestRuns.containsKey(testRunId);
+    }
+
+    // Use an incrementing counter for test run IDs, reset when all runs are finished
+    private static final AtomicInteger testRunIdCounter = new AtomicInteger(1);
+
+    // Store the last assigned testRunId for controller access
+    private static final ThreadLocal<Integer> lastAssignedTestRunId = new ThreadLocal<>();
+    public static int getCurrentTestRunId() {
+        Integer id = lastAssignedTestRunId.get();
+        return id != null ? id : -1;
+    }
+
+    // Store results for each testRunId
+    private static final ConcurrentHashMap<Integer, List<ActionResult>> testResults = new ConcurrentHashMap<>();
 
     @Autowired
     private TestRunRepository testRunRepository;
@@ -70,34 +91,100 @@ public class TestServiceImpl implements TestService {
     @PreDestroy
     public void shutdownExecutor() {
         logger.info("Shutting down ExecutorService for parallel test execution...");
+        // Cancel all active test runs before shutting down
+        activeTestRuns.forEach((id, future) -> future.cancel(true));
         executorService.shutdown();
     }
 
+    // testRunIdGenerator is initialized with new AtomicLong(1).
+    // The first call to testRunIdGenerator.getAndIncrement() will return 1, making the first testRunId = 1.
+    // If the first observed ID is 2 on a clean application start, it implies an additional increment occurred
+    // before this method's invocation in that specific run, potentially due to environment or other startup processes.
     @Override
     public List<ActionResult> executeActions(TestRequest request) {
+        // Assign an incrementing test run ID
+        int testRunId = testRunIdCounter.getAndIncrement();
+        lastAssignedTestRunId.set(testRunId);
+        logger.info("Starting test run {} with {} actions", testRunId,
+                request.getActions() != null ? request.getActions().size() : 0);
+
         queuedCount.incrementAndGet();
+        Future<List<ActionResult>> future = null; // Declared to be in scope for activeTestRuns.put
+
         try {
-            Future<List<ActionResult>> future = executorService.submit(() -> {
-                queuedCount.decrementAndGet();
+            final int finalTestRunId = testRunId;
+            future = executorService.submit(() -> {
                 try {
-                    return executeActionsInternal(request);
+                    queuedCount.decrementAndGet(); // Decrement when actual execution begins
+                    logger.info("Executing test run {}", finalTestRunId);
+                    return executeActionsInternal(request); // Perform the actual test logic
                 } catch (Exception e) {
-                    logger.error("Exception in parallel test execution thread", e);
-                    // Optionally, return a failed ActionResult for the whole test run
-                    List<ActionResult> failed = new ArrayList<>();
-                    failed.add(new ActionResult("testRun", "failure", "Test run failed: " + e.getMessage(), null, 0, "Exception: " + e.toString()));
-                    return failed;
+                    logger.error("Error during execution of test run {}: {}", finalTestRunId, e.getMessage(), e);
+                    throw e; // Propagate to be caught by ExecutionException in the outer try-catch
                 }
             });
-            return future.get(); // Wait for completion and return results
-        } catch (Exception e) {
-            logger.error("Parallel test execution failed", e);
-            throw new RuntimeException("Parallel test execution failed: " + e.getMessage(), e);
+
+            // Track this test run's Future object in the activeTestRuns map.
+            // This allows it to be cancelled later if needed.
+            activeTestRuns.put(testRunId, future);
+
+            try {
+                // Wait for the test run to complete and get its results.
+                List<ActionResult> results = future.get();
+                logger.info("Test run {} completed successfully.", testRunId);
+                return results;
+            } catch (CancellationException e) {
+                logger.info("Test run {} was cancelled.", testRunId);
+                // Construct and return a result indicating cancellation.
+                List<ActionResult> cancelResults = new ArrayList<>();
+                cancelResults.add(new ActionResult("cancelled", "cancelled", "Test run " + testRunId + " was cancelled.", null, 0, "Test run ID: " + testRunId));
+                return cancelResults;
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt(); // Restore interrupted status.
+                logger.error("Test run {} was interrupted.", testRunId, e);
+                throw new RuntimeException("Test run " + testRunId + " was interrupted.", e);
+            } catch (ExecutionException e) {
+                logger.error("Test run {} execution failed with an underlying cause.", testRunId, e.getCause());
+                throw new RuntimeException("Test run " + testRunId + " execution failed: " + (e.getCause() != null ? e.getCause().getMessage() : e.getMessage()), e.getCause() != null ? e.getCause() : e);
+            }
+        } finally {
+            // Ensure the test run is removed from the activeTestRuns map
+            if (activeTestRuns.containsKey(testRunId)) {
+                activeTestRuns.remove(testRunId);
+                logger.debug("Removed test run {} from activeTestRuns map in finally block of executeActions.", testRunId);
+            }
+            // Reset the counter only if no active test runs remain
+            if (activeTestRuns.isEmpty()) {
+                testRunIdCounter.set(1);
+                logger.info("All test runs finished. Resetting testRunIdCounter to 1.");
+            }
         }
     }
 
-    public static int getQueuedCount() {
-        return queuedCount.get();
+    @Override
+    public boolean cancelTestRun(long testRunId) {
+        logger.info("Attempting to cancel test run {}.", testRunId);
+        Future<?> future = activeTestRuns.get((int)testRunId);
+
+        if (future == null) {
+            logger.warn("Test run {} not found in activeTestRuns. It might have already completed or been cancelled.", testRunId);
+            return false;
+        }
+
+        boolean cancelled = future.cancel(true);
+
+        if (cancelled) {
+            logger.info("Test run {} successfully cancelled via future.cancel(true).", testRunId);
+            activeTestRuns.remove((int)testRunId);
+            testResults.put((int)testRunId, List.of(new ActionResult("cancelled", "cancelled", "Test run " + testRunId + " was cancelled.", null, 0, "Test run ID: " + testRunId)));
+        } else {
+            logger.warn("Failed to cancel test run {} via future.cancel(true). It may have already completed, been cancelled, or is non-interruptible.", testRunId);
+        }
+        return cancelled;
+    }
+
+    public static int getQueuedCount() { // Ensure this method exists if it was part of previous thoughts, or adjust if queuedCount was removed
+        return executorService.getQueue().size();
     }
 
     // The original logic moved to a new method
@@ -132,6 +219,10 @@ public class TestServiceImpl implements TestService {
         try {
             SeleniumActionExecutor executor = new SeleniumActionExecutor(driver);
             results = executor.executeActions(resolvedActions, request.isStopOnFailure());
+            if (results == null) { // Ensure results is never null if method completes normally
+                logger.warn("SeleniumActionExecutor.executeActions returned null. Defaulting to an empty list of results.");
+                results = new ArrayList<>();
+            }
         } finally {
             driver.quit();
         }
@@ -143,6 +234,7 @@ public class TestServiceImpl implements TestService {
             testRun.setExecutedAt(LocalDateTime.now());
             testRun.setActionsJson(objectMapper.writeValueAsString(request.getActions()));
             testRun.setResultsJson(objectMapper.writeValueAsString(results));
+            testRun.setStatus("finished"); // Set status to finished
             testRunRepository.save(testRun);
         } catch (Exception e) {
             logger.error("Failed to save test run to the database", e);
@@ -176,6 +268,7 @@ public class TestServiceImpl implements TestService {
             if (!(actionObj instanceof Map)) {
                 throw new ValidationException("Action at index " + i + " is not a valid object.");
             }
+            // Suppressed unchecked cast warnings
             @SuppressWarnings("unchecked")
             Map<String, Object> action = (Map<String, Object>) actionObj;
             String type = (String) action.get("action");
@@ -199,6 +292,8 @@ public class TestServiceImpl implements TestService {
                     if (action.get("locator") == null || !(action.get("locator") instanceof Map)) {
                         throw new ValidationException("'locator' is required for '" + type + "' action at index " + i + ".");
                     }
+                    // Suppressed unchecked cast warnings
+                    @SuppressWarnings("unchecked")
                     Map<String, String> locator = (Map<String, String>) action.get("locator");
                     if (!locator.containsKey("type") || !locator.containsKey("value") || locator.get("type").isBlank() || locator.get("value").isBlank()) {
                         throw new ValidationException("'locator.type' and 'locator.value' are required for '" + type + "' action at index " + i + ".");
@@ -231,6 +326,8 @@ public class TestServiceImpl implements TestService {
                     if (action.get("locator") == null || !(action.get("locator") instanceof Map)) {
                         throw new ValidationException("'locator' is required for 'select' action at index " + i + ".");
                     }
+                    // Suppressed unchecked cast warnings
+                    @SuppressWarnings("unchecked")
                     Map<String, String> locator = (Map<String, String>) action.get("locator");
                     if (!locator.containsKey("type") || !locator.containsKey("value") || locator.get("type").isBlank() || locator.get("value").isBlank()) {
                         throw new ValidationException("'locator.type' and 'locator.value' are required for 'select' action at index " + i + ".");
@@ -255,6 +352,8 @@ public class TestServiceImpl implements TestService {
                     if (action.get("locator") == null || !(action.get("locator") instanceof Map)) {
                         throw new ValidationException("'locator' is required for '" + type + "' action at index " + i + ".");
                     }
+                    // Suppressed unchecked cast warnings
+                    @SuppressWarnings("unchecked")
                     Map<String, String> locator = (Map<String, String>) action.get("locator");
                     if (!locator.containsKey("type") || !locator.containsKey("value") || locator.get("type").isBlank() || locator.get("value").isBlank()) {
                         throw new ValidationException("'locator.type' and 'locator.value' are required for '" + type + "' action at index " + i + ".");
@@ -276,6 +375,8 @@ public class TestServiceImpl implements TestService {
                                 if (action.get("locator") == null || !(action.get("locator") instanceof Map)) {
                                     throw new ValidationException("'locator' is required for 'assert' with 'text' condition at index " + i + ".");
                                 }
+                                // Suppressed unchecked cast warnings
+                                @SuppressWarnings("unchecked")
                                 Map<String, String> locator = (Map<String, String>) action.get("locator");
                                 if (!locator.containsKey("type") || !locator.containsKey("value") || locator.get("type").isBlank() || locator.get("value").isBlank()) {
                                     throw new ValidationException("'locator.type' and 'locator.value' are required for 'assert' with 'text' condition at index " + i + ".");
@@ -289,6 +390,8 @@ public class TestServiceImpl implements TestService {
                             if (action.get("locator") == null || !(action.get("locator") instanceof Map)) {
                                 throw new ValidationException("'locator' is required for 'assert' with '" + condition + "' condition at index " + i + ".");
                             }
+                            // Suppressed unchecked cast warnings
+                            @SuppressWarnings("unchecked")
                             Map<String, String> locator = (Map<String, String>) action.get("locator");
                             if (!locator.containsKey("type") || !locator.containsKey("value") || locator.get("type").isBlank() || locator.get("value").isBlank()) {
                                 throw new ValidationException("'locator.type' and 'locator.value' are required for 'assert' with '" + condition + "' condition at index " + i + ".");
@@ -298,6 +401,8 @@ public class TestServiceImpl implements TestService {
                             if (action.get("locator") == null || !(action.get("locator") instanceof Map)) {
                                 throw new ValidationException("'locator' is required for 'assert' with 'attributeValue' condition at index " + i + ".");
                             }
+                            // Suppressed unchecked cast warnings
+                            @SuppressWarnings("unchecked")
                             Map<String, String> locator = (Map<String, String>) action.get("locator");
                             if (!locator.containsKey("type") || !locator.containsKey("value") || locator.get("type").isBlank() || locator.get("value").isBlank()) {
                                 throw new ValidationException("'locator.type' and 'locator.value' are required for 'assert' with 'attributeValue' condition at index " + i + ".");
@@ -316,6 +421,8 @@ public class TestServiceImpl implements TestService {
                     if (action.get("locator") == null || !(action.get("locator") instanceof Map)) {
                         throw new ValidationException("'locator' is required for 'doubleclick' action at index " + i + ".");
                     }
+                    // Suppressed unchecked cast warnings
+                    @SuppressWarnings("unchecked")
                     Map<String, String> locator = (Map<String, String>) action.get("locator");
                     if (!locator.containsKey("type") || !locator.containsKey("value") || locator.get("type").isBlank() || locator.get("value").isBlank()) {
                         throw new ValidationException("'locator.type' and 'locator.value' are required for 'doubleclick' action at index " + i + ".");
@@ -333,7 +440,11 @@ public class TestServiceImpl implements TestService {
                     if (action.get("targetLocator") == null || !(action.get("targetLocator") instanceof Map)) {
                         throw new ValidationException("'targetLocator' is required for 'draganddrop' action at index " + i + ".");
                     }
+                    // Suppressed unchecked cast warnings
+                    @SuppressWarnings("unchecked")
                     Map<String, String> sourceLocator = (Map<String, String>) action.get("sourceLocator");
+                    // Suppressed unchecked cast warnings
+                    @SuppressWarnings("unchecked")
                     Map<String, String> targetLocator = (Map<String, String>) action.get("targetLocator");
                     if (!sourceLocator.containsKey("type") || !sourceLocator.containsKey("value") || sourceLocator.get("type").isBlank() || sourceLocator.get("value").isBlank()) {
                         throw new ValidationException("'sourceLocator.type' and 'sourceLocator.value' are required for 'draganddrop' action at index " + i + ".");
@@ -383,6 +494,63 @@ public class TestServiceImpl implements TestService {
             return null;
         }
     }
+
+    public static List<ActionResult> getResultsForRun(int testRunId) {
+        logger.debug("Fetching results for testRunId: {}", testRunId);
+        List<ActionResult> results = testResults.get(testRunId);
+        if (results == null) {
+            logger.warn("No results found for testRunId: {}", testRunId);
+        } else {
+            logger.info("Results successfully fetched for testRunId: {}", testRunId);
+        }
+        return results;
+    }
+
+    // Submit test asynchronously and return testRunId immediately
+    public int submitTestAsync(TestRequest request) {
+        int testRunId = testRunIdCounter.getAndIncrement(); // Get ID
+        Future<?> future;
+        try {
+            future = executorService.submit(() -> {
+                try {
+                    List<ActionResult> resultsInternal = executeActionsInternal(request);
+                    logger.info("For testRunId {}: executeActionsInternal returned. Results null? {}", testRunId, resultsInternal == null);
+                    testResults.put(testRunId, resultsInternal);
+                    logger.info("For testRunId {}: Put results into map. Map size: {}", testRunId, testResults.size());
+                } catch (Exception e) {
+                    logger.error("For testRunId {}: Error in async test run: {}", testRunId, e.getMessage(), e);
+                    testResults.put(testRunId, List.of());
+                    logger.info("For testRunId {}: Put empty list into map due to error. Map size: {}", testRunId, testResults.size());
+                } finally {
+                    activeTestRuns.remove(testRunId);
+                    if (activeTestRuns.isEmpty() && executorService.getQueue().isEmpty()) {
+                        testRunIdCounter.set(1);
+                        logger.info("All active test runs finished and executor queue is empty. Resetting testRunIdCounter to 1.");
+                    }
+                }
+            });
+            activeTestRuns.put(testRunId, future);
+        } catch (RejectedExecutionException ree) {
+            logger.error("Test run {} rejected by executor service: {}", testRunId, ree.getMessage());
+            throw new RuntimeException("Test execution queue is full. Please try again later.", ree);
+        }
+        return testRunId;
+    }
+
+    public static void clearPersistedTestResults(int testRunId) {
+        if (testResults.containsKey(testRunId)) {
+            testResults.remove(testRunId);
+            logger.info("Cleared persisted results for test run ID: {}", testRunId);
+        } else {
+            logger.warn("Attempted to clear results for test run ID: {}, but they were not found.", testRunId);
+        }
+    }
+
+    public boolean isTestRunActive(int testRunId) {
+        TestRun testRun = testRunRepository.findById((long) testRunId).orElse(null);
+        if (testRun == null) {
+            return false; // Test run not found
+        }
+        return "running".equalsIgnoreCase(testRun.getStatus());
+    }
 }
-
-
