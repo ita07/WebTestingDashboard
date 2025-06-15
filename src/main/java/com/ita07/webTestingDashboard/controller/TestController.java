@@ -3,23 +3,18 @@ package com.ita07.webTestingDashboard.controller;
 import com.ita07.webTestingDashboard.model.ActionResult;
 import com.ita07.webTestingDashboard.model.TestRequest;
 import com.ita07.webTestingDashboard.model.TestRun;
-import com.ita07.webTestingDashboard.service.TestService;
 import com.ita07.webTestingDashboard.repository.TestRunRepository;
+import com.ita07.webTestingDashboard.service.TestService;
 import com.ita07.webTestingDashboard.serviceImpl.TestServiceImpl;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-
-import java.util.List;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.HashMap;
-import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ThreadPoolExecutor;
 
 @RestController
 @RequestMapping("/api/tests")

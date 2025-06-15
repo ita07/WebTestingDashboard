@@ -1,6 +1,8 @@
 package com.ita07.webTestingDashboard.config;
 
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -29,5 +31,16 @@ public class WebMvcConfig implements WebMvcConfigurer {
         registry.addResourceHandler("/reports/**")
                 .addResourceLocations("file:" + reportsPath);
     }
-}
 
+    @Bean
+    public LayoutInterceptor layoutInterceptor() {
+        return new LayoutInterceptor();
+    }
+
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(layoutInterceptor())
+                .addPathPatterns("/**")
+                .excludePathPatterns("/login", "/error", "/api/**", "/static/**", "/screenshots/**", "/reports/**");
+    }
+}
