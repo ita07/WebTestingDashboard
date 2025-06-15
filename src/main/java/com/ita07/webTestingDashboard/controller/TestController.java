@@ -25,9 +25,6 @@ public class TestController {
     private final TestRunRepository testRunRepository;
 
     @Autowired
-    private TestServiceImpl testServiceImpl;
-
-    @Autowired
     public TestController(TestService testService, TestRunRepository testRunRepository) {
         this.testService = testService;
         this.testRunRepository = testRunRepository;

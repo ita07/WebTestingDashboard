@@ -8,20 +8,40 @@
     <!-- Content fragment that will be inserted into layout.html -->
     <div th:fragment="content">
         <h2><i class="fas fa-tools"></i> Settings</h2>
-        <form id="settings-form">
+        <form id="settings-form" method="post" action="/settings/update">
             <div class="form-group">
-                <label for="concurrency"><i class="fas fa-tasks"></i> Concurrency:</label>
-                <input type="number" id="concurrency" name="concurrency" min="1" max="10" value="3">
+                <label for="concurrency">
+                    <i class="fas fa-tasks me-1"></i> Concurrency:
+                </label>
+                <input type="number"
+                       name="concurrency"
+                       id="concurrency"
+                       class="form-control"
+                       th:value="${concurrency}" />
             </div>
-            <div class="form-group">
-                <label for="default-browser"><i class="fas fa-globe"></i> Default Browser:</label>
-                <select id="default-browser" name="default-browser">
-                    <option value="chrome" selected>Chrome</option>
-                    <option value="firefox">Firefox</option>
-                    <option value="edge">Edge</option>
+
+            <div class="form-group mt-3">
+                <label for="browser">
+                    <i class="fa-brands fa-chrome"></i> Default Browser:
+                </label>
+                <select name="browser" id="browser" class="form-control" required>
+                    <option value="chrome" th:selected="${browser == 'chrome'}">Chrome</option>
+                    <option value="firefox" th:selected="${browser == 'firefox'}">Firefox</option>
+                    <option value="edge" th:selected="${browser == 'edge'}">Edge</option>
                 </select>
             </div>
-            <button type="submit"><i class="fas fa-save"></i> Save Settings</button>
+
+            <div class="form-group mt-3">
+                <label for="stopOnFailure">
+                    <i class="fas fa-exclamation-triangle me-1"></i> Stop on Failure:
+                </label>
+                <select name="stopOnFailure" id="stopOnFailure" class="form-control" required>
+                    <option value="yes" th:selected="${stopOnFailure == 'yes'}">Yes</option>
+                    <option value="no" th:selected="${stopOnFailure == 'no'}">No</option>
+                </select>
+            </div>
+
+            <button type="submit" class="btn btn-primary mt-4">Save Settings</button>
         </form>
     </div>
 </body>

@@ -1,57 +1,47 @@
 package com.ita07.webTestingDashboard.serviceImpl;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ita07.webTestingDashboard.exception.ValidationException;
 import com.ita07.webTestingDashboard.model.ActionResult;
 import com.ita07.webTestingDashboard.model.TestData;
 import com.ita07.webTestingDashboard.model.TestRequest;
+import com.ita07.webTestingDashboard.model.TestRun;
+import com.ita07.webTestingDashboard.repository.TestRunRepository;
 import com.ita07.webTestingDashboard.selenium.config.SeleniumConfig;
 import com.ita07.webTestingDashboard.selenium.utils.SeleniumActionExecutor;
 import com.ita07.webTestingDashboard.service.TestDataService;
 import com.ita07.webTestingDashboard.service.TestService;
-import com.ita07.webTestingDashboard.model.TestRun;
-import com.ita07.webTestingDashboard.repository.TestRunRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.PreDestroy;
 import lombok.Getter;
 import org.openqa.selenium.WebDriver;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
-import jakarta.annotation.PreDestroy;
-import jakarta.annotation.PostConstruct;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-
-import org.springframework.beans.factory.annotation.Value;
 
 @Service
 public class TestServiceImpl implements TestService {
     private static final Logger logger = LoggerFactory.getLogger(TestServiceImpl.class);
     // Add a fixed thread pool for parallel test execution
-    private static int MAX_PARALLEL_TESTS = 4; // Default, can be overridden by property
-    // Expose the executor for status endpoint
+    private static int currentParallelTests = -1; // clearly invalid until injected
     @Getter
-    private static final ThreadPoolExecutor executorService = new ThreadPoolExecutor(
-            MAX_PARALLEL_TESTS, // corePoolSize
-            MAX_PARALLEL_TESTS, // maximumPoolSize
-            60L, // keepAliveTime
-            TimeUnit.SECONDS,
-            new LinkedBlockingQueue<>(100) // Bounded queue, adjust capacity as needed
-    );
+    private static ThreadPoolExecutor executorService;
+
     // Fast, non-blocking counter for queued test runs
     private static final AtomicInteger queuedCount = new AtomicInteger(0);
     // Track active test runs with their unique IDs and Future objects
@@ -66,6 +56,7 @@ public class TestServiceImpl implements TestService {
 
     // Store the last assigned testRunId for controller access
     private static final ThreadLocal<Integer> lastAssignedTestRunId = new ThreadLocal<>();
+
     public static int getCurrentTestRunId() {
         Integer id = lastAssignedTestRunId.get();
         return id != null ? id : -1;
@@ -81,12 +72,36 @@ public class TestServiceImpl implements TestService {
     private TemplateEngine templateEngine;
     @Autowired
     private TestDataService testDataService;
-    @Value("${parallel.tests.max:4}")
-    public void setMaxParallelTests(int max) {
-        MAX_PARALLEL_TESTS = max;
-        executorService.setCorePoolSize(max);
-        executorService.setMaximumPoolSize(max);
+
+    public synchronized void setMaxParallelTests(int max) {
+        if (max <= 0) {
+            logger.warn("Attempted to set invalid concurrency: {}", max);
+            return;
+        }
+
+        currentParallelTests = max;
+
+        if (executorService == null || executorService.isShutdown()) {
+            executorService = new ThreadPoolExecutor(
+                    max,
+                    max,
+                    60L,
+                    TimeUnit.SECONDS,
+                    new LinkedBlockingQueue<>(100)
+            );
+            logger.info("ExecutorService initialized with concurrency: {}", max);
+        } else {
+            try {
+                // Correct order: max first, then core
+                executorService.setMaximumPoolSize(max);
+                executorService.setCorePoolSize(max);
+                logger.info("ExecutorService concurrency updated to: {}", max);
+            } catch (IllegalArgumentException | NullPointerException e) {
+                logger.error("Failed to update ExecutorService concurrency to {}: {}", max, e.getMessage(), e);
+            }
+        }
     }
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @PreDestroy
@@ -165,7 +180,7 @@ public class TestServiceImpl implements TestService {
     @Override
     public boolean cancelTestRun(long testRunId) {
         logger.info("Attempting to cancel test run {}.", testRunId);
-        Future<?> future = activeTestRuns.get((int)testRunId);
+        Future<?> future = activeTestRuns.get((int) testRunId);
 
         if (future == null) {
             logger.warn("Test run {} not found in activeTestRuns. It might have already completed or been cancelled.", testRunId);
@@ -176,9 +191,9 @@ public class TestServiceImpl implements TestService {
 
         if (cancelled) {
             logger.info("Test run {} successfully cancelled via future.cancel(true).", testRunId);
-            activeTestRuns.remove((int)testRunId);
+            activeTestRuns.remove((int) testRunId);
 
-            TestRequest testRequest = testRequests.get((int)testRunId); // Retrieve the TestRequest
+            TestRequest testRequest = testRequests.get((int) testRunId); // Retrieve the TestRequest
 
             // Save the canceled test run to the database
             try {
@@ -196,7 +211,7 @@ public class TestServiceImpl implements TestService {
         } else {
             logger.warn("Failed to cancel test run {} via future.cancel(true). It may have already completed, been cancelled, or is non-interruptible.", testRunId);
         }
-        testRequests.remove((int)testRunId); // Clean up TestRequest
+        testRequests.remove((int) testRunId); // Clean up TestRequest
         return cancelled;
     }
 
@@ -217,16 +232,17 @@ public class TestServiceImpl implements TestService {
             try {
                 TestData testData = testDataService.getTestData(request.getTestDataId());
                 // Properly parse the JSON string into a Map
-                Map<String, Object> variables = objectMapper.readValue(testData.getDataJson(), new TypeReference<>() {});
+                Map<String, Object> variables = objectMapper.readValue(testData.getDataJson(), new TypeReference<>() {
+                });
                 logger.info("Loaded test data variables: {}", variables);
 
                 resolvedActions = request.getActions().stream()
-                    .map(action -> {
-                        Map<String, Object> resolvedAction = testDataService.resolveVariables(new HashMap<>(action), variables);
-                        logger.info("Original action: {}, Resolved action: {}", action, resolvedAction);
-                        return resolvedAction;
-                    })
-                    .toList();
+                        .map(action -> {
+                            Map<String, Object> resolvedAction = testDataService.resolveVariables(new HashMap<>(action), variables);
+                            logger.info("Original action: {}, Resolved action: {}", action, resolvedAction);
+                            return resolvedAction;
+                        })
+                        .toList();
             } catch (Exception e) {
                 logger.error("Failed to process test data: {}", e.getMessage(), e);
                 throw new ValidationException("Failed to process test data: " + e.getMessage());
@@ -240,8 +256,7 @@ public class TestServiceImpl implements TestService {
                 logger.warn("SeleniumActionExecutor.executeActions returned null. Defaulting to an empty list of results.");
                 results = new ArrayList<>();
             }
-        }
-        finally {
+        } finally {
             driver.quit();
         }
 
@@ -295,7 +310,7 @@ public class TestServiceImpl implements TestService {
             }
             // List of supported actions
             final List<String> supportedActions = List.of(
-                "navigate", "click", "type", "wait", "select", "check", "uncheck", "hover", "scroll", "upload", "assert", "doubleclick", "draganddrop"
+                    "navigate", "click", "type", "wait", "select", "check", "uncheck", "hover", "scroll", "upload", "assert", "doubleclick", "draganddrop"
             );
             if (!supportedActions.contains(type.toLowerCase())) {
                 throw new ValidationException("Unsupported action: '" + type + "' at index " + i + ".");
@@ -318,7 +333,7 @@ public class TestServiceImpl implements TestService {
                     }
                     String locatorType = locator.get("type").toLowerCase();
                     if (!locatorType.equals("id") && !locatorType.equals("name") && !locatorType.equals("xpath") && !locatorType.equals("cssselector") &&
-                        !locatorType.equals("classname") && !locatorType.equals("tagname") && !locatorType.equals("linktext") && !locatorType.equals("partiallinktext")) {
+                            !locatorType.equals("classname") && !locatorType.equals("tagname") && !locatorType.equals("linktext") && !locatorType.equals("partiallinktext")) {
                         throw new ValidationException("Unsupported locator type: '" + locatorType + "' for action '" + type + "' at index " + i + ".");
                     }
                     if (type.equalsIgnoreCase("type") && (action.get("text") == null || ((String) action.get("text")).isBlank())) {
@@ -352,7 +367,7 @@ public class TestServiceImpl implements TestService {
                     }
                     String locatorType = locator.get("type").toLowerCase();
                     if (!locatorType.equals("id") && !locatorType.equals("name") && !locatorType.equals("xpath") && !locatorType.equals("cssselector") &&
-                        !locatorType.equals("classname") && !locatorType.equals("tagname") && !locatorType.equals("linktext") && !locatorType.equals("partiallinktext")) {
+                            !locatorType.equals("classname") && !locatorType.equals("tagname") && !locatorType.equals("linktext") && !locatorType.equals("partiallinktext")) {
                         throw new ValidationException("Unsupported locator type: '" + locatorType + "' for action '" + type + "' at index " + i + ".");
                     }
                     if (action.get("selectBy") == null || ((String) action.get("selectBy")).isBlank()) {
@@ -378,7 +393,7 @@ public class TestServiceImpl implements TestService {
                     }
                     String locatorType = locator.get("type").toLowerCase();
                     if (!locatorType.equals("id") && !locatorType.equals("name") && !locatorType.equals("xpath") && !locatorType.equals("cssselector") &&
-                        !locatorType.equals("classname") && !locatorType.equals("tagname") && !locatorType.equals("linktext") && !locatorType.equals("partiallinktext")) {
+                            !locatorType.equals("classname") && !locatorType.equals("tagname") && !locatorType.equals("linktext") && !locatorType.equals("partiallinktext")) {
                         throw new ValidationException("Unsupported locator type: '" + locatorType + "' for action '" + type + "' at index " + i + ".");
                     }
                 }
@@ -432,7 +447,8 @@ public class TestServiceImpl implements TestService {
                                 throw new ValidationException("'expected' is required for 'assert' with 'attributeValue' condition at index " + i + ".");
                             }
                         }
-                        default -> throw new ValidationException("Unsupported assertion condition: '" + condition + "' at index " + i + ".");
+                        default ->
+                                throw new ValidationException("Unsupported assertion condition: '" + condition + "' at index " + i + ".");
                     }
                 }
                 case "doubleclick" -> {
@@ -447,7 +463,7 @@ public class TestServiceImpl implements TestService {
                     }
                     String locatorType = locator.get("type").toLowerCase();
                     if (!locatorType.equals("id") && !locatorType.equals("name") && !locatorType.equals("xpath") && !locatorType.equals("cssselector") &&
-                        !locatorType.equals("classname") && !locatorType.equals("tagname") && !locatorType.equals("linktext") && !locatorType.equals("partiallinktext")) {
+                            !locatorType.equals("classname") && !locatorType.equals("tagname") && !locatorType.equals("linktext") && !locatorType.equals("partiallinktext")) {
                         throw new ValidationException("Unsupported locator type: '" + locatorType + "' for action 'doubleclick' at index " + i + ".");
                     }
                 }
@@ -473,11 +489,11 @@ public class TestServiceImpl implements TestService {
                     String sourceLocatorType = sourceLocator.get("type").toLowerCase();
                     String targetLocatorType = targetLocator.get("type").toLowerCase();
                     if (!sourceLocatorType.equals("id") && !sourceLocatorType.equals("name") && !sourceLocatorType.equals("xpath") && !sourceLocatorType.equals("cssselector") &&
-                        !sourceLocatorType.equals("classname") && !sourceLocatorType.equals("tagname") && !sourceLocatorType.equals("linktext") && !sourceLocatorType.equals("partiallinktext")) {
+                            !sourceLocatorType.equals("classname") && !sourceLocatorType.equals("tagname") && !sourceLocatorType.equals("linktext") && !sourceLocatorType.equals("partiallinktext")) {
                         throw new ValidationException("Unsupported sourceLocator type: '" + sourceLocatorType + "' for action 'draganddrop' at index " + i + ".");
                     }
                     if (!targetLocatorType.equals("id") && !targetLocatorType.equals("name") && !targetLocatorType.equals("xpath") && !targetLocatorType.equals("cssselector") &&
-                        !targetLocatorType.equals("classname") && !targetLocatorType.equals("tagname") && !targetLocatorType.equals("linktext") && !targetLocatorType.equals("partiallinktext")) {
+                            !targetLocatorType.equals("classname") && !targetLocatorType.equals("tagname") && !targetLocatorType.equals("linktext") && !targetLocatorType.equals("partiallinktext")) {
                         throw new ValidationException("Unsupported targetLocator type: '" + targetLocatorType + "' for action 'draganddrop' at index " + i + ".");
                     }
                 }

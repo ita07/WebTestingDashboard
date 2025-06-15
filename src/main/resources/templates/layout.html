@@ -8,89 +8,87 @@
     <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-    <div class="dashboard-container">
-        <div class="sidebar">
-            <div class="sidebar-header">
-                <h2><i class="fas fa-tachometer-alt"></i> Web Testing Dashboard</h2>
-            </div>
-            <ul class="sidebar-menu">
-                <li><a th:href="@{/dashboard}" th:class="${activeTab == 'dashboard' ? 'active' : ''}"><i class="fas fa-home"></i> Dashboard</a></li>
-                <li><a th:href="@{/analytics}" th:class="${activeTab == 'analytics' ? 'active' : ''}"><i class="fas fa-chart-line"></i> Analytics</a></li>
-                <li><a th:href="@{/reports}" th:class="${activeTab == 'reports' ? 'active' : ''}"><i class="fas fa-file-alt"></i> Reports</a></li>
-                <li><a th:href="@{/settings}" th:class="${activeTab == 'settings' ? 'active' : ''}"><i class="fas fa-cog"></i> Settings</a></li>
-                <li><a href="#" id="logout-link" style="color: red;" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
-            </ul>
+<div class="dashboard-container">
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h2><i class="fas fa-tachometer-alt"></i> Web Testing Dashboard</h2>
         </div>
-        <div class="main-content">
-            <div class="top-bar">
-                <h3><i class="fas fa-user"></i> Welcome, Admin</h3>
-                <div>
-                    <span><i class="fas fa-bell"></i></span>
-                </div>
+        <ul class="sidebar-menu">
+            <li><a th:href="@{/dashboard}" th:class="${activeTab == 'dashboard' ? 'active' : ''}"><i
+                    class="fas fa-home"></i> Dashboard</a></li>
+            <li><a th:href="@{/analytics}" th:class="${activeTab == 'analytics' ? 'active' : ''}"><i
+                    class="fas fa-chart-line"></i> Analytics</a></li>
+            <li><a th:href="@{/reports}" th:class="${activeTab == 'reports' ? 'active' : ''}"><i
+                    class="fas fa-file-alt"></i> Reports</a></li>
+            <li><a th:href="@{/settings}" th:class="${activeTab == 'settings' ? 'active' : ''}"><i
+                    class="fas fa-cog"></i> Settings</a></li>
+            <li><a href="#" id="logout-link" style="color: red;" onclick="logout()"><i class="fas fa-sign-out-alt"></i>
+                Logout</a></li>
+        </ul>
+    </div>
+    <div class="main-content">
+        <div class="top-bar">
+            <h3><i class="fas fa-user"></i> Welcome, Admin</h3>
+            <div>
+                <span><i class="fas fa-bell"></i></span>
             </div>
-            <div class="content">
-                <!-- Main content area that gets populated with the current view -->
-                <div th:if="${view != null}" th:replace="~{${view} :: content}"></div>
-                <div th:unless="${view != null}" id="default-content">
-                    <h2>Welcome to Web Testing Dashboard</h2>
-                    <p>Please select a tab from the sidebar.</p>
-                </div>
+        </div>
+        <div class="content">
+            <!-- Main content area that gets populated with the current view -->
+            <div th:if="${view != null}" th:replace="~{${view} :: content}"></div>
+            <div th:unless="${view != null}" id="default-content">
+                <h2>Welcome to Web Testing Dashboard</h2>
+                <p>Please select a tab from the sidebar.</p>
             </div>
         </div>
     </div>
+</div>
 
-    <script>
-        function logout() {
-            if (confirm('Are you sure you want to logout?')) {
-                fetch('/logout', {
-                    method: 'POST',
-                    credentials: 'include'
-                }).then(response => {
-                    window.location.href = '/login?logout';
-                }).catch(error => {
-                    console.error('Logout failed:', error);
-                    alert('Logout failed. Please try again.');
-                });
-            }
+<script>
+    function logout() {
+        if (confirm('Are you sure you want to logout?')) {
+            fetch('/logout', {
+                method: 'POST',
+                credentials: 'include'
+            }).then(response => {
+                window.location.href = '/login?logout';
+            }).catch(error => {
+                console.error('Logout failed:', error);
+                alert('Logout failed. Please try again.');
+            });
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        // Add event listeners for dynamic content, if needed
+        if (document.getElementById('run-tests')) {
+            document.getElementById('run-tests').addEventListener('click', function () {
+                alert('Running tests...');
+            });
         }
 
-        document.addEventListener('DOMContentLoaded', function() {
-            // Add event listeners for dynamic content, if needed
-            if (document.getElementById('run-tests')) {
-                document.getElementById('run-tests').addEventListener('click', function() {
-                    alert('Running tests...');
-                });
-            }
+        if (document.getElementById('cancel-tests')) {
+            document.getElementById('cancel-tests').addEventListener('click', function () {
+                alert('Tests cancelled.');
+            });
+        }
 
-            if (document.getElementById('cancel-tests')) {
-                document.getElementById('cancel-tests').addEventListener('click', function() {
-                    alert('Tests cancelled.');
-                });
-            }
+        // Load reports if on the reports tab
+        if (document.getElementById('reports-table-body')) {
+            loadReports();
+        }
+    });
 
-            if (document.getElementById('settings-form')) {
-                document.getElementById('settings-form').addEventListener('submit', function(e) {
-                    e.preventDefault();
-                    alert('Settings saved!');
-                });
-            }
+    function loadReports() {
+        const reports = [
+            {id: '001', name: 'Login Test', status: 'Passed', time: '120 ms'},
+            {id: '002', name: 'Checkout Test', status: 'Failed', time: '45 ms'},
+            {id: '003', name: 'Search Test', status: 'Passed', time: '200 ms'}
+        ];
 
-            // Load reports if on the reports tab
-            if (document.getElementById('reports-table-body')) {
-                loadReports();
-            }
-        });
-
-        function loadReports() {
-            const reports = [
-                { id: '001', name: 'Login Test', status: 'Passed', time: '120 ms' },
-                { id: '002', name: 'Checkout Test', status: 'Failed', time: '45 ms' },
-                { id: '003', name: 'Search Test', status: 'Passed', time: '200 ms' }
-            ];
-
-            const tbody = document.getElementById('reports-table-body');
-            if (tbody) {
-                tbody.innerHTML = reports.map(report => `
+        const tbody = document.getElementById('reports-table-body');
+        if (tbody) {
+            tbody.innerHTML = reports.map(report => `
                     <tr>
                         <td>${report.id}</td>
                         <td>${report.name}</td>
@@ -99,8 +97,34 @@
                         <td><button><i class="fas fa-eye"></i> View</button></td>
                     </tr>
                 `).join('');
-            }
         }
-    </script>
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const checkSettingsForm = () => {
+            const form = document.getElementById('settings-form');
+            if (form) {
+                form.addEventListener('submit', function (e) {
+                    e.preventDefault();
+
+                    const formData = new FormData(form);
+                    fetch('/api/settings/update', {
+                        method: 'POST',
+                        body: formData
+                    })
+                        .then(response => response.text())
+                        .then(data => alert(data))
+                        .catch(() => alert("Error saving settings"));
+                });
+            }
+        };
+
+        // Observe content area for dynamic fragment loads
+        const observer = new MutationObserver(checkSettingsForm);
+        observer.observe(document.querySelector('.content'), {childList: true, subtree: true});
+
+        checkSettingsForm(); // run once in case already loaded
+    });
+</script>
 </body>
 </html>
