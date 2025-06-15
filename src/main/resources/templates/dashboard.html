@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard</title>
+</head>
+<body>
+    <!-- Simple fragment that will be included in the layout -->
+    <div th:fragment="content">
+        <h2><i class="fas fa-chart-pie"></i> Dashboard Overview</h2>
+        <div class="card-container">
+            <div class="card">
+                <i class="fas fa-list"></i>
+                <h3>Total Tests</h3>
+                <p th:text="${totalTestRuns}">-</p>
+            </div>
+            <div class="card">
+                <i class="fas fa-check-circle"></i>
+                <h3>Passed</h3>
+                <p th:text="${passedTests}">-</p>
+            </div>
+            <div class="card">
+                <i class="fas fa-times-circle"></i>
+                <h3>Failed</h3>
+                <p th:text="${failedTests}">-</p>
+            </div>
+            <div class="card">
+                <i class="fas fa-running"></i>
+                <h3>Running</h3>
+                <p th:text="${runningTests}">-</p>
+            </div>
+            <div class="card">
+                <i class="fa-solid fa-hourglass-start"></i>
+                <h3>In Queue</h3>
+                <p th:text="${queuedTests}">-</p>
+            </div>
+        </div>
+        <div>
+            <button id="run-tests"><i class="fas fa-play"></i> Run Tests</button>
+            <button id="cancel-tests"><i class="fas fa-stop"></i> Cancel Tests</button>
+        </div>
+    </div>
+</body>
+</html>

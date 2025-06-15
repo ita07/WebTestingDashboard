@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Analytics</title>
+</head>
+<body>
+    <!-- Content fragment that will be inserted into layout.html -->
+    <div th:fragment="content">
+        <h2><i class="fas fa-chart-line"></i> Analytics</h2>
+        <div class="card">
+            <i class="fas fa-chart-area"></i>
+            <h3>Test Execution Trends</h3>
+            <p>Chart Placeholder</p>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Metric</th>
+                    <th>Value</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Average Execution Time</td>
+                    <td id="avg-execution-time" th:text="${avgDuration}">150 ms</td>
+                </tr>
+                <tr>
+                    <td>Success Rate</td>
+                    <td id="success-rate" th:text="${successRate + '%'}">85%</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

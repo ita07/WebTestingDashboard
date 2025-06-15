@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Settings</title>
+</head>
+<body>
+    <!-- Content fragment that will be inserted into layout.html -->
+    <div th:fragment="content">
+        <h2><i class="fas fa-tools"></i> Settings</h2>
+        <form id="settings-form">
+            <div class="form-group">
+                <label for="concurrency"><i class="fas fa-tasks"></i> Concurrency:</label>
+                <input type="number" id="concurrency" name="concurrency" min="1" max="10" value="3">
+            </div>
+            <div class="form-group">
+                <label for="default-browser"><i class="fas fa-globe"></i> Default Browser:</label>
+                <select id="default-browser" name="default-browser">
+                    <option value="chrome" selected>Chrome</option>
+                    <option value="firefox">Firefox</option>
+                    <option value="edge">Edge</option>
+                </select>
+            </div>
+            <button type="submit"><i class="fas fa-save"></i> Save Settings</button>
+        </form>
+    </div>
+</body>
+</html>
