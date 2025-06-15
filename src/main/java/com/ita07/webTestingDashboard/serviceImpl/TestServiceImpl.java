@@ -73,6 +73,7 @@ public class TestServiceImpl implements TestService {
 
     // Store results for each testRunId
     private static final ConcurrentHashMap<Integer, List<ActionResult>> testResults = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Integer, TestRequest> testRequests = new ConcurrentHashMap<>();
 
     @Autowired
     private TestRunRepository testRunRepository;
@@ -117,7 +118,7 @@ public class TestServiceImpl implements TestService {
                 try {
                     queuedCount.decrementAndGet(); // Decrement when actual execution begins
                     logger.info("Executing test run {}", finalTestRunId);
-                    return executeActionsInternal(request); // Perform the actual test logic
+                    return executeActionsInternal(request, testRunId); // Pass testRunId to executeActionsInternal
                 } catch (Exception e) {
                     logger.error("Error during execution of test run {}: {}", finalTestRunId, e.getMessage(), e);
                     throw e; // Propagate to be caught by ExecutionException in the outer try-catch
@@ -176,10 +177,26 @@ public class TestServiceImpl implements TestService {
         if (cancelled) {
             logger.info("Test run {} successfully cancelled via future.cancel(true).", testRunId);
             activeTestRuns.remove((int)testRunId);
-            testResults.put((int)testRunId, List.of(new ActionResult("cancelled", "cancelled", "Test run " + testRunId + " was cancelled.", null, 0, "Test run ID: " + testRunId)));
+
+            TestRequest testRequest = testRequests.get((int)testRunId); // Retrieve the TestRequest
+
+            // Save the canceled test run to the database
+            try {
+                TestRun testRun = new TestRun();
+                testRun.setBrowser(testRequest != null ? testRequest.getBrowser() : "unknown");
+                testRun.setExecutedAt(LocalDateTime.now());
+                testRun.setActionsJson(testRequest != null ? objectMapper.writeValueAsString(testRequest.getActions()) : "[]");
+                // Directly use the results from the testResults map
+                testRun.setResultsJson("[]"); // No results to save since it was cancelled
+                testRun.setStatus("cancelled");
+                testRunRepository.save(testRun);
+            } catch (Exception e) {
+                logger.error("Failed to save canceled test run to the database", e);
+            }
         } else {
             logger.warn("Failed to cancel test run {} via future.cancel(true). It may have already completed, been cancelled, or is non-interruptible.", testRunId);
         }
+        testRequests.remove((int)testRunId); // Clean up TestRequest
         return cancelled;
     }
 
@@ -188,11 +205,11 @@ public class TestServiceImpl implements TestService {
     }
 
     // The original logic moved to a new method
-    private List<ActionResult> executeActionsInternal(TestRequest request) {
+    private List<ActionResult> executeActionsInternal(TestRequest request, int testRunId) {
         validateTestRequest(request);
         String browser = request.getBrowser() != null ? request.getBrowser() : "chrome";
         WebDriver driver = SeleniumConfig.createDriver(browser);
-        List<ActionResult> results;
+        List<ActionResult> results = List.of();
 
         // Handle test data if provided
         List<Map<String, Object>> resolvedActions = request.getActions();
@@ -223,7 +240,8 @@ public class TestServiceImpl implements TestService {
                 logger.warn("SeleniumActionExecutor.executeActions returned null. Defaulting to an empty list of results.");
                 results = new ArrayList<>();
             }
-        } finally {
+        }
+        finally {
             driver.quit();
         }
 
@@ -509,11 +527,14 @@ public class TestServiceImpl implements TestService {
     // Submit test asynchronously and return testRunId immediately
     public int submitTestAsync(TestRequest request) {
         int testRunId = testRunIdCounter.getAndIncrement(); // Get ID
+        testRequests.put(testRunId, request); // Store the TestRequest
+        logger.info("Storing TestRequest in map for test run {}", testRunId);
+
         Future<?> future;
         try {
             future = executorService.submit(() -> {
                 try {
-                    List<ActionResult> resultsInternal = executeActionsInternal(request);
+                    List<ActionResult> resultsInternal = executeActionsInternal(request, testRunId);
                     logger.info("For testRunId {}: executeActionsInternal returned. Results null? {}", testRunId, resultsInternal == null);
                     testResults.put(testRunId, resultsInternal);
                     logger.info("For testRunId {}: Put results into map. Map size: {}", testRunId, testResults.size());
@@ -523,6 +544,7 @@ public class TestServiceImpl implements TestService {
                     logger.info("For testRunId {}: Put empty list into map due to error. Map size: {}", testRunId, testResults.size());
                 } finally {
                     activeTestRuns.remove(testRunId);
+                    testRequests.remove(testRunId); // Clean up TestRequest after completion
                     if (activeTestRuns.isEmpty() && executorService.getQueue().isEmpty()) {
                         testRunIdCounter.set(1);
                         logger.info("All active test runs finished and executor queue is empty. Resetting testRunIdCounter to 1.");
@@ -531,6 +553,7 @@ public class TestServiceImpl implements TestService {
             });
             activeTestRuns.put(testRunId, future);
         } catch (RejectedExecutionException ree) {
+            testRequests.remove(testRunId); // Clean up TestRequest if execution is rejected
             logger.error("Test run {} rejected by executor service: {}", testRunId, ree.getMessage());
             throw new RuntimeException("Test execution queue is full. Please try again later.", ree);
         }
