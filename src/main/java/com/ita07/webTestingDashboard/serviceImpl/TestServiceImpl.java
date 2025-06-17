@@ -92,9 +92,13 @@ public class TestServiceImpl implements TestService {
             logger.info("ExecutorService initialized with concurrency: {}", max);
         } else {
             try {
-                // Correct order: max first, then core
+                int currentCorePoolSize = executorService.getCorePoolSize();
+                if (currentCorePoolSize > max) {
+                    logger.info("Reducing core pool size from {} to {} to match maximum pool size.", currentCorePoolSize, max);
+                    executorService.setCorePoolSize(max);
+                }
+
                 executorService.setMaximumPoolSize(max);
-                executorService.setCorePoolSize(max);
                 logger.info("ExecutorService concurrency updated to: {}", max);
             } catch (IllegalArgumentException | NullPointerException e) {
                 logger.error("Failed to update ExecutorService concurrency to {}: {}", max, e.getMessage(), e);
