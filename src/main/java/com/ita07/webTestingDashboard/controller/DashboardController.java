@@ -2,16 +2,22 @@ package com.ita07.webTestingDashboard.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ita07.webTestingDashboard.model.TestRun;
 import com.ita07.webTestingDashboard.repository.TestRunRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 
 import java.util.Map;
+import java.util.stream.StreamSupport;
 
 @Controller
 public class DashboardController {
+
+    private static final Logger logger = LoggerFactory.getLogger(DashboardController.class);
 
     @Autowired
     private TestRunRepository testRunRepository;
@@ -27,15 +33,7 @@ public class DashboardController {
         model.addAttribute("totalTestRuns", totalTestRuns);
 
         long successfulTestRuns = testRunRepository.findAll().stream()
-                .filter(testRun -> {
-                    try {
-                        JsonNode resultsJson = objectMapper.readTree(testRun.getResultsJson());
-                        return resultsJson.findValues("status").stream()
-                                .anyMatch(statusNode -> "success".equalsIgnoreCase(statusNode.asText()));
-                    } catch (Exception e) {
-                        return false;
-                    }
-                })
+                .filter(this::isTestRunSuccessful)
                 .count();
 
         long failedTestRuns = totalTestRuns - successfulTestRuns;
@@ -65,5 +63,16 @@ public class DashboardController {
         model.addAttribute("queuedTests", status.get("queuedTestRuns"));
 
         return "layout";
+    }
+
+    private boolean isTestRunSuccessful(TestRun testRun) {
+        try {
+            JsonNode resultsJson = objectMapper.readTree(testRun.getResultsJson());
+            return StreamSupport.stream(resultsJson.spliterator(), false)
+                    .allMatch(actionNode -> "success".equalsIgnoreCase(actionNode.path("status").asText()));
+        } catch (Exception e) {
+            logger.error("Failed to parse resultsJson for testRun ID {}: {}", testRun.getId(), e.getMessage());
+            return false;
+        }
     }
 }
