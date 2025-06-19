@@ -7,9 +7,12 @@ import com.ita07.webTestingDashboard.selenium.utils.SeleniumUtils;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
+import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Map;
 
+@Component
 public class ClickAction implements SeleniumAction {
     @Override
     public ActionResult execute(WebDriver driver, Map<String, Object> params) {
@@ -30,5 +33,9 @@ public class ClickAction implements SeleniumAction {
             return new ActionResult("click", "failure", errorMessage, System.currentTimeMillis() - start, params.toString());
         }
     }
-}
 
+    @Override
+    public List<String> getRequiredParameters() {
+        return List.of("locator.type", "locator.value");
+    }
+}

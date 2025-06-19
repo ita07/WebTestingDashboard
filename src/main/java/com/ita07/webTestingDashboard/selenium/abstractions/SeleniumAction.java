@@ -2,6 +2,7 @@ package com.ita07.webTestingDashboard.selenium.abstractions;
 
 import com.ita07.webTestingDashboard.model.ActionResult;
 import org.openqa.selenium.WebDriver;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -15,5 +16,12 @@ public interface SeleniumAction {
      * @return ActionResult containing the outcome of the action.
      */
     ActionResult execute(WebDriver driver, Map<String, Object> params);
+
+    /**
+     * Gets the list of required parameters for the action.
+     * @return List of strings representing the names of required parameters.
+     */
+    List<String> getRequiredParameters();
 }
+
 

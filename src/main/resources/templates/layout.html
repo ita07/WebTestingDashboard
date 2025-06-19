@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
+<div id="popup-message" class="popup-message"></div>
 <div class="dashboard-container">
     <div class="sidebar">
         <div class="sidebar-header">
@@ -16,6 +17,8 @@
         <ul class="sidebar-menu">
             <li><a th:href="@{/dashboard}" th:class="${activeTab == 'dashboard' ? 'active' : ''}"><i
                     class="fas fa-home"></i> Dashboard</a></li>
+            <li><a th:href="@{/test-builder}" th:class="${activeTab == 'test-builder' ? 'active' : ''}"><i
+                    class="fas fa-hammer"></i> Test Builder</a></li>
             <li><a th:href="@{/analytics}" th:class="${activeTab == 'analytics' ? 'active' : ''}"><i
                     class="fas fa-chart-line"></i> Analytics</a></li>
             <li><a th:href="@{/reports}" th:class="${activeTab == 'reports' ? 'active' : ''}"><i
@@ -57,20 +60,6 @@
     }
 
     document.addEventListener('DOMContentLoaded', function () {
-        if (document.getElementById('run-tests')) {
-            document.getElementById('run-tests').addEventListener('click', function () {
-                alert('Running tests...');
-            });
-        }
-
-        if (document.getElementById('cancel-tests')) {
-            document.getElementById('cancel-tests').addEventListener('click', function () {
-                alert('Tests cancelled.');
-            });
-        }
-    });
-
-    document.addEventListener('DOMContentLoaded', function () {
         const checkSettingsForm = () => {
             const form = document.getElementById('settings-form');
             if (form) {
@@ -89,12 +78,253 @@
             }
         };
 
-        // Observe content area for dynamic fragment loads
-        const observer = new MutationObserver(checkSettingsForm);
-        observer.observe(document.querySelector('.content'), {childList: true, subtree: true});
+        const initRunTestPage = async () => {
+            const addActionBtn = document.getElementById('add-action-btn');
+            const actionsContainer = document.getElementById('actions-container');
+            const jsonPreview = document.getElementById('json-preview');
+            const form = document.getElementById('test-builder-form');
 
-        checkSettingsForm(); // run once in case already loaded
+            if (!form || !addActionBtn || !actionsContainer || !jsonPreview) {
+                showPopupMessage('Some required elements for the Test Builder are missing. Please refresh the page or contact support if the issue persists.');
+                return;
+            }
+
+            let actionDefinitions = {};
+            let locatorTypes = [];
+            let selectByTypes = [];
+
+            // Fetch all required data
+            try {
+                const [actionsResponse, locatorTypesResponse, selectByTypesResponse] = await Promise.all([
+                    fetch('/api/actions'),
+                    fetch('/api/actions/locators'),
+                    fetch('/api/actions/select-by')
+                ]);
+                actionDefinitions = await actionsResponse.json();
+                locatorTypes = await locatorTypesResponse.json();
+                selectByTypes = await selectByTypesResponse.json();
+            } catch (error) {
+                showPopupMessage('Failed to load Test Builder data. Please try again or contact support if the issue persists.');
+                return;
+            }
+
+            // Create input field based on parameter type
+            const createInputField = (param, key) => {
+                switch (param) {
+                    case 'locator.type':
+                        return `<select class="form-control" data-param="${param}">
+                            ${locatorTypes.map(type =>
+                                `<option value="${type}">${type.charAt(0).toUpperCase() + type.slice(1)}</option>`
+                            ).join('')}
+                        </select>`;
+                    case 'selectBy':
+                        return `<select class="form-control" data-param="${param}">
+                            ${selectByTypes.map(type =>
+                                `<option value="${type}">${type.charAt(0).toUpperCase() + type.slice(1)}</option>`
+                            ).join('')}
+                        </select>`;
+                    case 'seconds':
+                        return `<input type="number"
+                               class="form-control"
+                               data-param="${param}"
+                               min="0"
+                               value="1">`;
+                    default:
+                        return `<input type="text"
+                               class="form-control"
+                               data-param="${param}"
+                               placeholder="Enter ${key}">`;
+                }
+            };
+
+            // Create parameter group (label + input)
+            const createParamGroup = (param) => {
+                const [key, subKey] = param.split('.');
+                const label = subKey ? `${key} (${subKey})` : key;
+
+                return `
+                    <div class="form-group mt-2">
+                        <label>${label}</label>
+                        <div class="input-group">
+                            ${createInputField(param, label)}
+                        </div>
+                    </div>`;
+            };
+
+            // Create HTML for action parameters
+            const createActionParams = (actionType) => {
+                if (!actionDefinitions[actionType]) {
+                    return '<p class="text-muted">Select an action type to see its parameters.</p>';
+                }
+
+                return actionDefinitions[actionType]
+                    .map(param => createParamGroup(param))
+                    .join('');
+            };
+
+            // Create a new action block
+            const createActionBlock = () => {
+                const block = document.createElement('div');
+                block.className = 'action-block';
+                block.innerHTML = `
+                    <div class="action-block-header">
+                        <h5>Action</h5>
+                        <button type="button" class="btn btn-danger btn-sm remove-action-btn">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </div>
+                    <div class="form-group">
+                        <label>Action Type</label>
+                        <select class="form-control action-type-selector">
+                            <option value="">-- Select Action --</option>
+                            ${Object.keys(actionDefinitions)
+                                .map(action => `<option value="${action}">${action.charAt(0).toUpperCase() + action.slice(1)}</option>`)
+                                .join('')}
+                        </select>
+                    </div>
+                    <div class="action-params mt-2"></div>`;
+                actionsContainer.appendChild(block);
+            };
+
+            // Update action parameters when action type changes
+            actionsContainer.addEventListener('change', e => {
+                if (e.target.matches('.action-type-selector')) {
+                    const actionType = e.target.value;
+                    const paramsDiv = e.target.closest('.action-block').querySelector('.action-params');
+                    paramsDiv.innerHTML = createActionParams(actionType);
+                    updatePreview();
+                }
+            });
+
+            const updatePreview = () => {
+                const actions = Array.from(document.querySelectorAll('.action-block')).map(block => {
+                    const type = block.querySelector('.action-type-selector')?.value;
+                    if (!type) return null;
+                    const action = { action: type };
+                    const params = {};
+
+                    block.querySelectorAll('[data-param]').forEach(input => {
+                        const key = input.dataset.param;
+                        const value = input.type === 'checkbox' ? input.checked : input.value;
+                        const keys = key.split('.');
+                        let current = params;
+                        keys.forEach((k, i) => {
+                            if (i === keys.length - 1) current[k] = value;
+                            else current = current[k] = current[k] || {};
+                        });
+                    });
+
+                    return { ...action, ...params };
+                }).filter(Boolean);
+
+                jsonPreview.textContent = JSON.stringify(actions, null, 2);
+            };
+
+            actionsContainer.addEventListener('input', updatePreview);
+
+            actionsContainer.addEventListener('click', e => {
+                if (e.target.closest('.remove-action-btn')) {
+                    e.target.closest('.action-block').remove();
+                    updatePreview();
+                }
+            });
+
+            addActionBtn.addEventListener('click', createActionBlock);
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+
+                let actions;
+                try {
+                    actions = JSON.parse(jsonPreview.textContent);
+                    if (!Array.isArray(actions) || actions.length === 0) {
+                        alert('Add at least one action.');
+                        return;
+                    }
+                } catch {
+                    alert('Invalid JSON.');
+                    return;
+                }
+
+                const body = {
+                    browser: form.browser.value,
+                    stopOnFailure: form.stopOnFailure.value === 'true',
+                    testDataId: form['test-data'].value ? parseInt(form['test-data'].value) : null,
+                    actions
+                };
+
+                const resultsContainer = document.getElementById('results-container');
+                const resultsOutput = document.getElementById('results-output');
+
+                resultsContainer.style.display = 'block';
+                resultsOutput.textContent = 'Running test...';
+
+                try {
+                    const res = await fetch('/api/tests/run', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body)
+                    });
+                    const data = await res.json();
+                    if (data.testRunId) pollForResults(data.testRunId);
+                    else resultsOutput.textContent = 'Start error: ' + JSON.stringify(data);
+                } catch (err) {
+                    console.error(err);
+                    resultsOutput.textContent = 'Fetch error.';
+                }
+            });
+
+            const pollForResults = (testRunId) => {
+                const resultsOutput = document.getElementById('results-output');
+                const interval = setInterval(async () => {
+                    try {
+                        const res = await fetch(`/api/tests/results/${testRunId}`);
+                        const data = await res.json();
+                        if (data.status === 'finished') {
+                            clearInterval(interval);
+                            resultsOutput.textContent = JSON.stringify(data.results, null, 2);
+                        } else if (data.status === 'not_found') {
+                            clearInterval(interval);
+                            resultsOutput.textContent = 'Results not found.';
+                        }
+                    } catch (err) {
+                        clearInterval(interval);
+                        resultsOutput.textContent = 'Polling error.';
+                    }
+                }, 2000);
+            };
+
+            if (!actionsContainer.querySelector('.action-block')) createActionBlock();
+        };
+        let runTestPageInitialized = false;
+
+        const observer = new MutationObserver(() => {
+            if (!runTestPageInitialized && document.querySelector('#test-builder-form')) {
+                runTestPageInitialized = true;
+                requestIdleCallback(initRunTestPage);
+            }
+        });
+
+        observer.observe(document.body, { childList: true, subtree: true });
+
+// Also run once on initial load if content is already there
+        if (document.querySelector('#test-builder-form')) {
+            runTestPageInitialized = true;
+            requestIdleCallback(initRunTestPage);
+        }
+
+
     });
+
+    function showPopupMessage(message) {
+        const popup = document.getElementById('popup-message');
+        popup.textContent = message;
+        popup.style.display = 'block';
+
+        setTimeout(() => {
+            popup.style.display = 'none';
+        }, 5000);
+    }
 </script>
 </body>
 </html>

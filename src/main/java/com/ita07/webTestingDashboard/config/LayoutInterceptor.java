@@ -34,6 +34,9 @@ public class LayoutInterceptor implements HandlerInterceptor {
             } else if (requestURI.contains("/settings")) {
                 activeTab = "settings";
                 determinedViewName = "settings";
+            } else if (requestURI.contains("/test-builder")) {
+                activeTab = "test-builder";
+                determinedViewName = "test-builder";
             } else if (requestURI.contains("/dashboard") || requestURI.equals("/")) {
                 activeTab = "dashboard";
                 determinedViewName = "dashboard";

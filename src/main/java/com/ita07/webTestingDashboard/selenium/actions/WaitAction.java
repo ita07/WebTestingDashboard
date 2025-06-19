@@ -5,8 +5,12 @@ import com.ita07.webTestingDashboard.selenium.abstractions.SeleniumAction;
 import com.ita07.webTestingDashboard.selenium.utils.SeleniumActionExecutor;
 import com.ita07.webTestingDashboard.selenium.utils.SeleniumUtils;
 import org.openqa.selenium.WebDriver;
+import org.springframework.stereotype.Component;
+
+import java.util.List;
 import java.util.Map;
 
+@Component
 public class WaitAction implements SeleniumAction {
     @Override
     public ActionResult execute(WebDriver driver, Map<String, Object> params) {
@@ -44,5 +48,10 @@ public class WaitAction implements SeleniumAction {
             }
             return new ActionResult("wait", "failure", errorMessage, System.currentTimeMillis() - start, details);
         }
+    }
+
+    @Override
+    public List<String> getRequiredParameters() {
+        return List.of("seconds");
     }
 }

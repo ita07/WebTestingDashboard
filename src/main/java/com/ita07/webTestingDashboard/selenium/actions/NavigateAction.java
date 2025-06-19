@@ -4,9 +4,12 @@ import com.ita07.webTestingDashboard.model.ActionResult;
 import com.ita07.webTestingDashboard.selenium.abstractions.SeleniumAction;
 import com.ita07.webTestingDashboard.selenium.utils.SeleniumActionExecutor;
 import org.openqa.selenium.WebDriver;
+import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Map;
 
+@Component
 public class NavigateAction implements SeleniumAction {
     @Override
     public ActionResult execute(WebDriver driver, Map<String, Object> params) {
@@ -24,5 +27,9 @@ public class NavigateAction implements SeleniumAction {
             return new ActionResult("navigate", "failure", "Navigation failed: " + errorMessage, System.currentTimeMillis() - start, "url: " + url);
         }
     }
-}
 
+    @Override
+    public List<String> getRequiredParameters() {
+        return List.of("url");
+    }
+}

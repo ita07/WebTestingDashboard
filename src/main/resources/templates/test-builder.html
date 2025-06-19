@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Build Test</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<!-- Content fragment that will be inserted into layout.html -->
+<div th:fragment="content">
+    <form id="test-builder-form">
+        <div class="test-builder-container">
+            <!-- Left Column: Form and Actions -->
+            <div class="actions-canvas">
+                <h2><i class="fas fa-drafting-compass"></i> Build Your Test</h2>
+                <p>Add and configure action blocks below to build your test script.</p>
+
+                <div id="actions-container" class="mt-4">
+                    <!-- Action blocks will be added here dynamically -->
+                </div>
+
+                <button type="button" id="add-action-btn" class="btn btn-success mt-2">
+                    <i class="fas fa-plus-circle me-1"></i> Add Action
+                </button>
+
+                <hr class="my-4">
+
+                <h3><i class="fas fa-cogs"></i> Configuration</h3>
+                <div class="form-group mt-3">
+                    <label for="browser"><i class="fa-brands fa-chrome"></i> Browser:</label>
+                    <select name="browser" id="browser" class="form-control" required>
+                        <option value="chrome">Chrome</option>
+                        <option value="firefox">Firefox</option>
+                        <option value="edge">Edge</option>
+                    </select>
+                </div>
+                <div class="form-group mt-3">
+                    <label for="test-data"><i class="fas fa-database me-1"></i> Test Data (Optional):</label>
+                    <select name="testDataId" id="test-data" class="form-control">
+                        <option value="">None</option>
+                    </select>
+                </div>
+                <div class="form-group mt-3">
+                    <label for="stop-on-failure"><i class="fas fa-exclamation-triangle me-1"></i> On Test Failure:</label>
+                    <select name="stopOnFailure" id="stop-on-failure" class="form-control" required>
+                        <option value="true">Stop Test</option>
+                        <option value="false">Continue Test</option>
+                    </select>
+                </div>
+
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-primary btn-lg"><i class="fas fa-play-circle me-1"></i> Run Test</button>
+                </div>
+
+                <div id="results-container" class="mt-4" style="display:none;">
+                    <h3>Test Results</h3>
+                    <pre><code id="results-output"></code></pre>
+                </div>
+
+                <!-- JSON Preview at the bottom -->
+                <div class="preview-pane mt-5">
+                    <h4><i class="fas fa-file-code me-1"></i> Real-Time JSON Preview</h4>
+                    <hr style="border-color: #4a5568;">
+                    <pre><code id="json-preview">[]</code></pre>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+</body>
+</html>

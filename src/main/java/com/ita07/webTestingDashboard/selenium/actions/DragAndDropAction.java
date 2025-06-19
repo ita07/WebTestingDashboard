@@ -7,8 +7,12 @@ import com.ita07.webTestingDashboard.selenium.utils.SeleniumUtils;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
+import org.springframework.stereotype.Component;
+
+import java.util.List;
 import java.util.Map;
 
+@Component
 public class DragAndDropAction implements SeleniumAction {
     @Override
     public ActionResult execute(WebDriver driver, Map<String, Object> params) {
@@ -38,5 +42,10 @@ public class DragAndDropAction implements SeleniumAction {
             return new ActionResult("draganddrop", "failure", errorMessage,
                 System.currentTimeMillis() - start, details);
         }
+    }
+
+    @Override
+    public List<String> getRequiredParameters() {
+        return List.of("sourceLocator.type", "sourceLocator.value", "targetLocator.type", "targetLocator.value");
     }
 }
