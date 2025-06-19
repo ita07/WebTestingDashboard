@@ -3,10 +3,8 @@ package com.ita07.webTestingDashboard.serviceImpl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ita07.webTestingDashboard.exception.ValidationException;
-import com.ita07.webTestingDashboard.model.ActionResult;
-import com.ita07.webTestingDashboard.model.TestData;
-import com.ita07.webTestingDashboard.model.TestRequest;
-import com.ita07.webTestingDashboard.model.TestRun;
+import com.ita07.webTestingDashboard.model.*;
+import com.ita07.webTestingDashboard.repository.TestReportRepository;
 import com.ita07.webTestingDashboard.repository.TestRunRepository;
 import com.ita07.webTestingDashboard.selenium.config.SeleniumConfig;
 import com.ita07.webTestingDashboard.selenium.utils.SeleniumActionExecutor;
@@ -68,6 +66,8 @@ public class TestServiceImpl implements TestService {
 
     @Autowired
     private TestRunRepository testRunRepository;
+    @Autowired
+    private TestReportRepository testReportRepository;
     @Autowired
     private TemplateEngine templateEngine;
     @Autowired
@@ -273,15 +273,20 @@ public class TestServiceImpl implements TestService {
             testRun.setResultsJson(objectMapper.writeValueAsString(results));
             testRun.setStatus("finished"); // Set status to finished
             testRunRepository.save(testRun);
+            // Generate and save HTML report
+            String htmlContent = generateHtmlReport(results);
+            String reportPath = saveHtmlReport(testRun, htmlContent);
+            if (reportPath != null) {
+                logger.info("Test report saved at: {}", reportPath);
+            }
+            // Save the test report with a direct link to the test run
+            TestReport testReport = new TestReport();
+            testReport.setPath(reportPath);
+            testReport.setGeneratedAt(LocalDateTime.now());
+            testReport.setTestRun(testRun); // direct link
+            testReportRepository.save(testReport);
         } catch (Exception e) {
             logger.error("Failed to save test run to the database", e);
-        }
-
-        // Generate and save HTML report
-        String htmlContent = generateHtmlReport(results);
-        String reportPath = saveHtmlReport(htmlContent);
-        if (reportPath != null) {
-            logger.info("Test report saved at: {}", reportPath);
         }
 
         return results;
@@ -515,7 +520,7 @@ public class TestServiceImpl implements TestService {
         return templateEngine.process("report", context);
     }
 
-    private String saveHtmlReport(String htmlContent) {
+    private String saveHtmlReport(TestRun testRun, String htmlContent) {
         String reportsDir = "reports";
         File dir = new File(reportsDir);
         if (!dir.exists() && !dir.mkdirs()) {
@@ -523,7 +528,7 @@ public class TestServiceImpl implements TestService {
             return null;
         }
 
-        String reportPath = reportsDir + "/test-report-" + System.currentTimeMillis() + ".html";
+        String reportPath = reportsDir + "/report_" + testRun.getId() + ".html";
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(reportPath))) {
             writer.write(htmlContent);
             return reportPath;

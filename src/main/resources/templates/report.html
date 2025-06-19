@@ -40,6 +40,7 @@
             border: 1px solid #dee2e6;
             padding: 12px;
             text-align: left;
+            color: #212529; /* Set text color to dark for better visibility */
         }
         th {
             background-color: #f8f9fa;
@@ -79,8 +80,7 @@
         </div>
         <div class="status-box total">
             <h3>Total Execution Time</h3>
-            <p th:text="${#numbers.formatDecimal(totalExecutionTimeSeconds, 1, 2)} + ' s'">0.00 s</p>
-        </div>
+            <p th:text="${totalExecutionTimeSeconds >= 3600 ? #numbers.formatDecimal(totalExecutionTimeSeconds / 3600.0, 1, 2) + ' h' : (totalExecutionTimeSeconds >= 60 ? #numbers.formatDecimal(totalExecutionTimeSeconds / 60.0, 1, 2) + ' min' : #numbers.formatDecimal(totalExecutionTimeSeconds, 1, 2) + ' sec')}">0.00 s</p>        </div>
     </div>
 
     <table>
@@ -105,7 +105,7 @@
                 </td>
                 <td th:class="${'status-' + result.status}" th:text="${result.status}">Status</td>
                 <td th:text="${result.message}">Message</td>
-                <td th:text="${#numbers.formatDecimal(result.executionTimeMillis / 1000.0, 1, 2)}">0.00</td>
+                <td th:text="${result.executionTimeMillis >= 3600000 ? #numbers.formatDecimal(result.executionTimeMillis / 3600000.0, 1, 2) + ' h' : (result.executionTimeMillis >= 60000 ? #numbers.formatDecimal(result.executionTimeMillis / 60000.0, 1, 2) + ' min' : #numbers.formatDecimal(result.executionTimeMillis / 1000.0, 1, 2) + ' sec')}">0.00 s</td>
                 <td>
                     <a th:if="${result.screenshotPath}"
                        th:href="${result.screenshotPath}"

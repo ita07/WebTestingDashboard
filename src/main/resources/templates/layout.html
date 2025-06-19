@@ -29,9 +29,6 @@
     <div class="main-content">
         <div class="top-bar">
             <h3><i class="fas fa-user"></i> Welcome, Admin</h3>
-            <div>
-                <span><i class="fas fa-bell"></i></span>
-            </div>
         </div>
         <div class="content">
             <!-- Main content area that gets populated with the current view -->
@@ -60,7 +57,6 @@
     }
 
     document.addEventListener('DOMContentLoaded', function () {
-        // Add event listeners for dynamic content, if needed
         if (document.getElementById('run-tests')) {
             document.getElementById('run-tests').addEventListener('click', function () {
                 alert('Running tests...');
@@ -72,33 +68,7 @@
                 alert('Tests cancelled.');
             });
         }
-
-        // Load reports if on the reports tab
-        if (document.getElementById('reports-table-body')) {
-            loadReports();
-        }
     });
-
-    function loadReports() {
-        const reports = [
-            {id: '001', name: 'Login Test', status: 'Passed', time: '120 ms'},
-            {id: '002', name: 'Checkout Test', status: 'Failed', time: '45 ms'},
-            {id: '003', name: 'Search Test', status: 'Passed', time: '200 ms'}
-        ];
-
-        const tbody = document.getElementById('reports-table-body');
-        if (tbody) {
-            tbody.innerHTML = reports.map(report => `
-                    <tr>
-                        <td>${report.id}</td>
-                        <td>${report.name}</td>
-                        <td>${report.status}</td>
-                        <td>${report.time}</td>
-                        <td><button><i class="fas fa-eye"></i> View</button></td>
-                    </tr>
-                `).join('');
-        }
-    }
 
     document.addEventListener('DOMContentLoaded', function () {
         const checkSettingsForm = () => {

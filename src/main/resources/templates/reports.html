@@ -12,14 +12,22 @@
             <thead>
                 <tr>
                     <th>Report ID</th>
-                    <th>Test Name</th>
+                    <th>Timestamp</th>
                     <th>Status</th>
                     <th>Execution Time</th>
                     <th>Actions</th>
                 </tr>
             </thead>
-            <tbody id="reports-table-body">
-                <!-- Reports will be dynamically inserted here -->
+            <tbody id="reports-table-body" th:each="report : ${reports}">
+                <tr>
+                    <td th:text="${report.id}">Report ID</td>
+                    <td th:text="${#temporals.format(report.generatedAt, 'dd-MM-yyyy HH:mm:ss')}">Timestamp</td>
+                    <td th:text="${report.testRun.status}">Status</td>
+                    <td th:text="${executionTimes[report.id] >= 3600 ? #numbers.formatDecimal(executionTimes[report.id] / 3600, 1, 2) + ' h' : (executionTimes[report.id] >= 60 ? #numbers.formatDecimal(executionTimes[report.id] / 60, 1, 2) + ' min' : #numbers.formatDecimal(executionTimes[report.id], 1, 2) + ' sec')}">Execution Time</td>
+                    <td>
+                        <a th:href="@{${report.path}}" class="screenshot-link" target="_blank">View Report</a>
+                    </td>
+                </tr>
             </tbody>
         </table>
     </div>
