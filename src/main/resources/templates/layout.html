@@ -112,6 +112,8 @@
             const createInputField = (param, key) => {
                 switch (param) {
                     case 'locator.type':
+                    case 'sourceLocator.type':
+                    case 'targetLocator.type':
                         return `<select class="form-control" data-param="${param}">
                             ${locatorTypes.map(type =>
                                 `<option value="${type}">${type.charAt(0).toUpperCase() + type.slice(1)}</option>`
