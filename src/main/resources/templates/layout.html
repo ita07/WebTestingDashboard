@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-<div id="popup-message" class="popup-message"></div>
+<div id="toast-container" class="toast-container"></div>
 <div class="dashboard-container">
     <div class="sidebar">
         <div class="sidebar-header">
@@ -50,33 +50,114 @@
             fetch('/logout', {
                 method: 'POST',
                 credentials: 'include'
-            }).then(response => {
+            }).then(() => {
                 window.location.href = '/login?logout';
             }).catch(error => {
                 console.error('Logout failed:', error);
-                alert('Logout failed. Please try again.');
+                showToast("Logout failed. Please try again.", "error");
             });
         }
     }
 
-    document.addEventListener('DOMContentLoaded', function () {
-        const checkSettingsForm = () => {
-            const form = document.getElementById('settings-form');
-            if (form) {
-                form.addEventListener('submit', function (e) {
-                    e.preventDefault();
+    // Toast notification system
+    function showToast(message, type = "info", duration = 5000) {
+        const toastContainer = document.getElementById('toast-container');
 
-                    const formData = new FormData(form);
-                    fetch('/api/settings/update', {
-                        method: 'POST',
-                        body: formData
-                    })
-                        .then(response => response.text())
-                        .then(data => alert(data))
-                        .catch(() => alert("Error saving settings"));
+        // Clear any existing toasts
+        toastContainer.innerHTML = '';
+
+        const toast = document.createElement('div');
+
+        // Generate a unique ID for this toast
+        const toastId = 'toast-' + Date.now();
+        toast.id = toastId;
+        toast.className = `popup-message ${type}`;
+
+        // Create message content in a separate element
+        const messageElement = document.createElement('span');
+        messageElement.className = 'popup-message-content';
+        messageElement.innerHTML = message;
+
+        // Create close button
+        const closeButton = document.createElement('span');
+        closeButton.className = 'popup-message-close';
+        closeButton.innerHTML = '&times;';
+        closeButton.onclick = () => removeToast(toastId);
+
+        // Add message and close button to toast
+        toast.appendChild(messageElement);
+        toast.appendChild(closeButton);
+
+        // Add to container
+        toastContainer.appendChild(toast);
+
+        // Show the toast
+        setTimeout(() => {
+            toast.style.display = 'block';
+        }, 10);
+
+        // Auto-remove after duration
+        if (duration > 0) {
+            setTimeout(() => removeToast(toastId), duration);
+        }
+
+        return toastId;
+    }
+
+    function removeToast(toastId) {
+        const toast = document.getElementById(toastId);
+        if (toast) {
+            // Add fade-out animation before removing
+            toast.style.animation = 'fadeOut 0.3s ease-out forwards';
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 300);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        // Form submission handling
+        function setupFormHandlers() {
+            // Settings form handler
+            const settingsForm = document.getElementById('settings-form');
+            if (settingsForm) {
+                settingsForm.addEventListener('submit', function (e) {
+                    e.preventDefault(); // Prevent default form submission
+                    handleFormSubmit(settingsForm, '/api/settings/update', 'Settings updated successfully.');
                 });
             }
-        };
+
+            // Generic form submission handler for AJAX forms
+            function handleFormSubmit(form, endpoint, successMessage) {
+                const formData = new FormData(form);
+
+                // Show loading indicator
+                showToast('Processing...', 'info');
+
+                fetch(endpoint, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.text();
+                })
+                .then(data => {
+                    showToast(data || successMessage, "success");
+                })
+                .catch(error => {
+                    console.error(`Error submitting to ${endpoint}:`, error);
+                    showToast("An error occurred. Please try again.", "error");
+                });
+            }
+        }
+
+        // Initialize all form handlers
+        setupFormHandlers();
 
         const initRunTestPage = async () => {
             const addActionBtn = document.getElementById('add-action-btn');
@@ -85,7 +166,7 @@
             const form = document.getElementById('test-builder-form');
 
             if (!form || !addActionBtn || !actionsContainer || !jsonPreview) {
-                showPopupMessage('Some required elements for the Test Builder are missing. Please refresh the page or contact support if the issue persists.');
+                showToast('Some required elements for the Test Builder are missing. Please refresh the page or contact support if the issue persists.', "error");
                 return;
             }
 
@@ -104,7 +185,7 @@
                 locatorTypes = await locatorTypesResponse.json();
                 selectByTypes = await selectByTypesResponse.json();
             } catch (error) {
-                showPopupMessage('Failed to load Test Builder data. Please try again or contact support if the issue persists.');
+                showToast('Failed to load Test Builder data. Please try again or contact support if the issue persists.', "error");
                 return;
             }
 
@@ -240,11 +321,11 @@
                 try {
                     actions = JSON.parse(jsonPreview.textContent);
                     if (!Array.isArray(actions) || actions.length === 0) {
-                        alert('Add at least one action.');
+                        showToast('Add at least one action.', "error");
                         return;
                     }
                 } catch {
-                    alert('Invalid JSON.');
+                    showToast('Invalid JSON.', "error");
                     return;
                 }
 
@@ -327,6 +408,28 @@
             popup.style.display = 'none';
         }, 5000);
     }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Show loader, hide form
+        document.getElementById('settings-loader').style.display = 'block';
+        document.getElementById('settings-form').style.display = 'none';
+
+        // Fetch settings via GET request
+        fetch('/api/settings')
+            .then(response => response.json())
+            .then(data => {
+                // Populate form with settings data
+                document.getElementById('concurrency').value = data.concurrency;
+
+                // Hide loader, show form
+                document.getElementById('settings-loader').style.display = 'none';
+                document.getElementById('settings-form').style.display = 'block';
+            })
+            .catch(error => {
+                console.error('Error loading settings:', error);
+                showToast('Error loading settings. Please refresh the page.', 'error');
+            });
+    });
 </script>
 </body>
 </html>

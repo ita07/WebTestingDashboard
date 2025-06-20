@@ -9,5 +9,4 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class SettingsDTO {
     private int concurrency;
-    private String browser;
 }

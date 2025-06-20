@@ -4,6 +4,10 @@
     --text-color: #5a5c69;
     --text-light: #ffffff;
     --shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+    --success-color: #1cc88a;
+    --error-color: #e74a3b;
+    --warning-color: #f6c23e;
+    --info-color: #36b9cc;
 }
 
 body {
@@ -212,22 +216,76 @@ tr:hover {
     margin: 0;
 }
 
-.popup-message {
+/* Toast container */
+.toast-container {
     position: fixed;
     top: 20px;
     right: 20px;
-    padding: 15px 25px;
-    background-color: #f8d7da;
-    border: 1px solid #f5c6cb;
+    z-index: 1050;
+    max-width: 350px;
+    width: 100%;
+}
+
+/* Toast notification styling */
+.popup-message {
+    position: relative;
+    padding: 15px 35px 15px 15px;
     border-radius: 4px;
-    color: #721c24;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-    z-index: 1000;
+    color: #ffffff;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+    margin-top: 10px;
     display: none;
     animation: slideIn 0.3s ease-out;
 }
 
+.popup-message-content {
+    display: block;
+    word-wrap: break-word;
+}
+
+/* Toast variants */
+.popup-message.success {
+    background-color: var(--success-color);
+    border-left: 5px solid #169a6e;
+}
+
+.popup-message.error {
+    background-color: var(--error-color);
+    border-left: 5px solid #be3c2e;
+}
+
+.popup-message.warning {
+    background-color: var(--warning-color);
+    border-left: 5px solid #d4a636;
+}
+
+.popup-message.info {
+    background-color: var(--info-color);
+    border-left: 5px solid #258391;
+}
+
+/* Close button */
+.popup-message-close {
+    position: absolute;
+    top: 5px;
+    right: 10px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 18px;
+    opacity: 0.7;
+}
+
+.popup-message-close:hover {
+    opacity: 1;
+}
+
+/* Animations */
 @keyframes slideIn {
     from { transform: translateX(100%); opacity: 0; }
     to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes fadeOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
 }

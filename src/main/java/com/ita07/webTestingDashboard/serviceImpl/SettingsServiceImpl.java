@@ -17,8 +17,9 @@ public class SettingsServiceImpl implements SettingsService {
 
     @Override
     public SettingsDTO getCurrentSettings() {
-        int concurrency = TestServiceImpl.getExecutorService().getCorePoolSize();
-        String browser = envConfigService.getProperty("browser", "chrome");
-        return new SettingsDTO(concurrency, browser);
+        // Get concurrency from configuration instead of directly from the executor service
+        String value = envConfigService.getProperty("parallel.tests.max", "4");
+        int concurrency = Integer.parseInt(value);
+        return new SettingsDTO(concurrency);
     }
 }
