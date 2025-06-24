@@ -19,6 +19,8 @@
                     class="fas fa-home"></i> Dashboard</a></li>
             <li><a th:href="@{/test-builder}" th:class="${activeTab == 'test-builder' ? 'active' : ''}"><i
                     class="fas fa-hammer"></i> Test Builder</a></li>
+            <li><a th:href="@{/test-runner}" th:class="${activeTab == 'test-runner' ? 'active' : ''}"><i
+                    class="fas fa-play"></i> Test Runner</a></li>
             <li><a th:href="@{/analytics}" th:class="${activeTab == 'analytics' ? 'active' : ''}"><i
                     class="fas fa-chart-line"></i> Analytics</a></li>
             <li><a th:href="@{/reports}" th:class="${activeTab == 'reports' ? 'active' : ''}"><i
@@ -314,7 +316,7 @@
 
             addActionBtn.addEventListener('click', createActionBlock);
 
-            form.addEventListener('submit', async (e) => {
+            form.addEventListener('submit', (e) => {
                 e.preventDefault();
 
                 let actions;
@@ -329,32 +331,18 @@
                     return;
                 }
 
-                const body = {
+                const builtTest = {
                     browser: form.browser.value,
                     stopOnFailure: form.stopOnFailure.value === 'true',
                     testDataId: form['test-data'].value ? parseInt(form['test-data'].value) : null,
                     actions
                 };
 
-                const resultsContainer = document.getElementById('results-container');
-                const resultsOutput = document.getElementById('results-output');
+                const builtTests = JSON.parse(sessionStorage.getItem('builtTests') || '[]');
+                builtTests.push(builtTest);
+                sessionStorage.setItem('builtTests', JSON.stringify(builtTests));
 
-                resultsContainer.style.display = 'block';
-                resultsOutput.textContent = 'Running test...';
-
-                try {
-                    const res = await fetch('/api/tests/run', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(body)
-                    });
-                    const data = await res.json();
-                    if (data.testRunId) pollForResults(data.testRunId);
-                    else resultsOutput.textContent = 'Start error: ' + JSON.stringify(data);
-                } catch (err) {
-                    console.error(err);
-                    resultsOutput.textContent = 'Fetch error.';
-                }
+                showToast('Test built successfully! Navigate to the Test Runner tab to run it.', 'success');
             });
 
             const pollForResults = (testRunId) => {
@@ -396,39 +384,239 @@
             requestIdleCallback(initRunTestPage);
         }
 
+        const initTestRunnerPage = () => {
+            const container = document.getElementById('test-card-container');
+            const noTestsMessage = document.getElementById('no-tests-message');
+            if (!container || !noTestsMessage) return;
 
-    });
+            let builtTests = JSON.parse(sessionStorage.getItem('builtTests') || '[]');
 
-    function showPopupMessage(message) {
-        const popup = document.getElementById('popup-message');
-        popup.textContent = message;
-        popup.style.display = 'block';
+            if (builtTests.length === 0) {
+                noTestsMessage.style.display = 'block';
+                return;
+            }
 
-        setTimeout(() => {
-            popup.style.display = 'none';
-        }, 5000);
-    }
+            const renderTestCards = () => {
+                container.innerHTML = '';
+                builtTests.forEach((test, index) => {
+                    // Get status from test object (default to 'pending' if not set)
+                    const status = test.status || 'pending';
+                    // Generate a unique test ID if not already present
+                    if (!test.id) {
+                        test.id = `T${Date.now().toString().slice(-6)}-${index}`;
+                        // Update the stored test with the new ID
+                        sessionStorage.setItem('builtTests', JSON.stringify(builtTests));
+                    }
 
-    document.addEventListener('DOMContentLoaded', function() {
-        // Show loader, hide form
-        document.getElementById('settings-loader').style.display = 'block';
-        document.getElementById('settings-form').style.display = 'none';
+                    const card = document.createElement('div');
+                    card.className = 'test-card';
+                    card.dataset.testId = test.id;
 
-        // Fetch settings via GET request
-        fetch('/api/settings')
-            .then(response => response.json())
-            .then(data => {
-                // Populate form with settings data
-                document.getElementById('concurrency').value = data.concurrency;
+                    // Generate a browser icon based on the test's browser
+                    const browserIcon = test.browser === 'chrome' ? 'fa-chrome' :
+                                        test.browser === 'firefox' ? 'fa-firefox' :
+                                        test.browser === 'edge' ? 'fa-edge' : 'fa-globe';
 
-                // Hide loader, show form
-                document.getElementById('settings-loader').style.display = 'none';
-                document.getElementById('settings-form').style.display = 'block';
-            })
-            .catch(error => {
-                console.error('Error loading settings:', error);
-                showToast('Error loading settings. Please refresh the page.', 'error');
+                    card.innerHTML = `
+                        <div class="test-status-badge status-${status}">
+                            ${status === 'pass' ? '<i class="fas fa-check-circle"></i> PASS' :
+                             status === 'fail' ? '<i class="fas fa-times-circle"></i> FAIL' :
+                             status === 'running' ? '<i class="fas fa-spinner fa-spin"></i> RUNNING' :
+                             status === 'cancelled' ? '<i class="fas fa-ban"></i> CANCELLED' :
+                             '<i class="fas fa-clock"></i> PENDING'}
+                        </div>
+                        <div class="test-card-content">
+                            <div class="test-card-main-info">
+                                <div class="test-card-browser">
+                                    <i class="fab ${browserIcon}"></i>
+                                </div>
+                                <div class="test-card-stats">
+                                    <div class="test-card-stat">
+                                        <i class="fas fa-tasks"></i>
+                                        <span>${test.actions.length} action${test.actions.length !== 1 ? 's' : ''}</span>
+                                    </div>
+                                    <div class="test-card-stat">
+                                        <i class="fas fa-${test.stopOnFailure ? 'stop-circle' : 'play-circle'}"></i>
+                                        <span>${test.stopOnFailure ? 'Stop on failure' : 'Continue on failure'}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="test-card-actions">
+                                <button class="${status === 'running' ? 'cancel-test-btn' : 'run-test-btn'}" data-index="${index}" data-testid="${status === 'running' && test.runId ? test.runId : test.id}">
+                                    <i class="fas fa-${status === 'running' ? 'ban' : 'play'}"></i> ${status === 'running' ? 'Cancel Test' : 'Run Test'}
+                                </button>
+                                <button class="delete-test-btn" data-index="${index}">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+            };
+
+            renderTestCards();
+
+            container.addEventListener('click', async (e) => {
+                const runButton = e.target.closest('.run-test-btn');
+                const cancelButton = e.target.closest('.cancel-test-btn');
+                const deleteButton = e.target.closest('.delete-test-btn');
+
+                if (runButton) {
+                    const button = runButton;
+                    if (button.disabled) return; // Prevent double clicks
+
+                    const index = button.dataset.index;
+                    const test = builtTests[index];
+                    const card = button.closest('.test-card');
+                    const testId = card.dataset.testId;
+                    const testToUpdate = builtTests.find(t => t.id === testId);
+                    const statusBadge = card.querySelector('.test-status-badge');
+
+                    // --- UI Update to "Starting" state ---
+                    button.disabled = true;
+                    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...';
+                    if (statusBadge) {
+                        statusBadge.className = 'test-status-badge status-running';
+                        statusBadge.innerHTML = '<i class="fas fa-spinner fa-spin"></i> RUNNING';
+                    }
+                    if (testToUpdate) {
+                        testToUpdate.status = 'running';
+                        sessionStorage.setItem('builtTests', JSON.stringify(builtTests));
+                    }
+
+                    showToast('Submitting test for execution...', 'info');
+
+                    try {
+                        const res = await fetch('/api/tests/run', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(test)
+                        });
+                        const data = await res.json();
+
+                        if (data.testRunId) {
+                            // --- Test Started Successfully ---
+                            if (testToUpdate) {
+                                testToUpdate.runId = data.testRunId;
+                                sessionStorage.setItem('builtTests', JSON.stringify(builtTests));
+                            }
+                            // Now transform the button into a real "Cancel" button
+                            button.className = 'cancel-test-btn';
+                            button.innerHTML = '<i class="fas fa-ban"></i> Cancel Test';
+                            button.dataset.testid = data.testRunId; // Set the correct ID for cancellation
+                            button.disabled = false; // Re-enable
+
+                            pollForResults(data.testRunId);
+                        } else {
+                            // --- Test Failed to Start ---
+                            showToast('Error starting test: ' + (data.message || JSON.stringify(data)), 'error');
+                            if (testToUpdate) {
+                                testToUpdate.status = 'pending';
+                                delete testToUpdate.runId;
+                                sessionStorage.setItem('builtTests', JSON.stringify(builtTests));
+                                renderTestCards(); // Re-render to fix the card state
+                            }
+                        }
+                    } catch (err) {
+                        // --- Network or other fetch error ---
+                        showToast('Failed to run test.', 'error');
+                        if (testToUpdate) {
+                            testToUpdate.status = 'pending';
+                            delete testToUpdate.runId;
+                            sessionStorage.setItem('builtTests', JSON.stringify(builtTests));
+                            renderTestCards(); // Re-render to fix the card state
+                        }
+                    }
+                } else if (cancelButton) {
+                    const button = cancelButton;
+                    const testRunId = button.dataset.testid;
+
+                    if (!/^[0-9]+$/.test(testRunId)) {
+                        showToast('Cannot cancel, test is not running with a valid ID.', 'warning');
+                        return;
+                    }
+
+                    button.disabled = true;
+                    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Cancelling...';
+
+                    try {
+                        const res = await fetch(`/api/tests/cancel/${testRunId}`, { method: 'POST' });
+                        const data = await res.json();
+                        if (data.cancelled) {
+                            showToast('Test cancelled successfully.', 'warning');
+                            const testToUpdate = builtTests.find(t => t.runId == testRunId);
+                            if (testToUpdate) {
+                                testToUpdate.status = 'cancelled';
+                                delete testToUpdate.runId;
+                                sessionStorage.setItem('builtTests', JSON.stringify(builtTests));
+                                renderTestCards();
+                            }
+                        } else {
+                            showToast('Failed to cancel test. It might have already completed.', 'error');
+                            renderTestCards();
+                        }
+                    } catch (err) {
+                        showToast('Failed to send cancel request.', 'error');
+                        renderTestCards();
+                    }
+                } else if (deleteButton) {
+                    const button = deleteButton;
+                    const index = button.dataset.index;
+                    builtTests.splice(index, 1);
+                    sessionStorage.setItem('builtTests', JSON.stringify(builtTests));
+                    renderTestCards();
+                }
             });
+
+            const pollForResults = (testRunId) => {
+                const interval = setInterval(async () => {
+                    const currentTests = JSON.parse(sessionStorage.getItem('builtTests') || '[]');
+                    const testToUpdate = currentTests.find(t => t.runId == testRunId);
+
+                    if (!testToUpdate) {
+                        clearInterval(interval);
+                        return;
+                    }
+
+                    try {
+                        const res = await fetch(`/api/tests/results/${testRunId}`);
+                        const data = await res.json();
+                        if (data.status === 'finished' || data.status === 'not_found') {
+                            clearInterval(interval);
+
+                            const newStatus = (data.status === 'finished' && data.results && data.results.length > 0 && data.results.every(r => r.status === 'success')) ? 'pass' : 'fail';
+                            const message = data.status === 'finished' ? `Test finished with status: ${newStatus.toUpperCase()}` : 'Test results not found, marked as failed.';
+                            const messageType = newStatus === 'pass' ? 'success' : 'error';
+                            showToast(message, messageType);
+
+                            if (testToUpdate) {
+                                testToUpdate.status = newStatus;
+                                delete testToUpdate.runId;
+                                sessionStorage.setItem('builtTests', JSON.stringify(currentTests));
+                                builtTests = currentTests;
+                                renderTestCards();
+                            }
+                        }
+                    } catch (err) {
+                        clearInterval(interval);
+                        showToast('Error polling for results.', 'error');
+                        if (testToUpdate) {
+                            testToUpdate.status = 'fail';
+                            delete testToUpdate.runId;
+                            sessionStorage.setItem('builtTests', JSON.stringify(currentTests));
+                            builtTests = currentTests;
+                            renderTestCards();
+                        }
+                    }
+                }, 2000);
+            };
+        };
+
+        if (document.getElementById('test-runner-container')) {
+            requestIdleCallback(initTestRunnerPage);
+        }
     });
 </script>
 </body>

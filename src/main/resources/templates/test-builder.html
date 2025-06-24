@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Build Test</title>
-    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
 <!-- Content fragment that will be inserted into layout.html -->
@@ -12,7 +12,7 @@
         <div class="test-builder-container">
             <!-- Left Column: Form and Actions -->
             <div class="actions-canvas">
-                <h2><i class="fas fa-drafting-compass"></i> Build Your Test</h2>
+                <h2><i class="fas fa-hammer"></i> Build Your Test</h2>
                 <p>Add and configure action blocks below to build your test script.</p>
 
                 <div id="actions-container" class="mt-4">
@@ -49,12 +49,11 @@
                 </div>
 
                 <div class="mt-4">
-                    <button type="submit" class="btn btn-primary btn-lg"><i class="fas fa-play-circle me-1"></i> Run Test</button>
+                    <button type="submit" class="btn btn-primary btn-lg"><i class="fas fa-cogs me-1"></i> Build Test</button>
                 </div>
 
                 <div id="results-container" class="mt-4" style="display:none;">
-                    <h3>Test Results</h3>
-                    <pre><code id="results-output"></code></pre>
+                    <div id="results-output" class="alert"></div>
                 </div>
 
                 <!-- JSON Preview at the bottom -->

@@ -103,6 +103,8 @@ body {
     padding: 1.5rem;
     flex: 1 1 200px;
     min-width: 200px;
+    display: flex;
+    flex-direction: column;
 }
 
 .card h3 {
@@ -115,6 +117,31 @@ body {
     font-size: 2rem;
     color: var(--primary-color);
     margin-bottom: 1rem;
+}
+
+.card-content {
+    flex-grow: 1;
+}
+
+.card-title {
+    display: flex;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.card-title i {
+    margin-right: 0.75rem;
+    font-size: 1.5rem;
+}
+
+.card-title h3 {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.card-info p {
+    margin: 0.25rem 0;
+    font-size: 0.9rem;
 }
 
 button {
@@ -288,4 +315,186 @@ tr:hover {
 @keyframes fadeOut {
     from { opacity: 1; }
     to { opacity: 0; }
+}
+
+.test-card-footer {
+    margin-top: auto;
+    padding-top: 1rem;
+    border-top: 1px solid #e3e6f0;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.test-card {
+    position: relative;
+    background: var(--text-light);
+    border-radius: 12px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.test-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+}
+
+.test-status-badge {
+    position: absolute;
+    top: 1rem;
+    right: 1.5rem;
+    font-weight: bold;
+    padding: 0.3rem 0.8rem;
+    border-radius: 2rem;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.status-pass {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.status-fail {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.status-cancelled {
+    background-color: #fff3cd;
+    color: #664d03;
+}
+
+.status-running {
+    background-color: #d1e7fd;
+    color: #084298;
+}
+
+.status-pending {
+    background-color: #e9ecef;
+    color: #495057;
+}
+
+.test-card-content {
+    padding: 1.5rem;
+    padding-top: 4rem; /* Space for the status badge */
+}
+
+.test-card-main-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.test-card-browser {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0;
+}
+
+.test-card-browser i {
+    font-size: 2rem;
+    margin-right: 0.75rem;
+    color: var(--primary-color);
+}
+
+.test-card-browser span {
+    font-size: 1.2rem;
+    font-weight: bold;
+    text-transform: capitalize;
+}
+
+.test-card-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 0;
+}
+
+.test-card-stat {
+    display: flex;
+    align-items: center;
+    background: #f8f9fa;
+    padding: 0.5rem 1rem;
+    border-radius: 2rem;
+}
+
+.test-card-stat i {
+    color: var(--text-color);
+    margin-right: 0.5rem;
+}
+
+.test-card-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.run-test-btn {
+    background: var(--success-color);
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 2rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.run-test-btn:hover {
+    background: #169a6e;
+    transform: scale(1.05);
+}
+
+.cancel-test-btn {
+    background: var(--warning-color);
+    color: #212529;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 2rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.cancel-test-btn:hover {
+    background: #e0a800;
+    transform: scale(1.05);
+}
+
+.delete-test-btn {
+    background: #f8f9fa;
+    color: var(--error-color);
+    border: none;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 0; /* Remove padding that might affect centering */
+}
+
+.delete-test-btn i {
+    margin: 0; /* Override the default margin for icons inside buttons */
+    display: block; /* Ensure the icon takes block display */
+    font-size: 1rem; /* Consistent icon size */
+}
+
+.delete-test-btn:hover {
+    background: var(--error-color);
+    color: white;
 }
