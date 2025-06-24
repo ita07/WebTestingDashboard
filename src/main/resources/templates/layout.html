@@ -617,6 +617,38 @@
         if (document.getElementById('test-runner-container')) {
             requestIdleCallback(initTestRunnerPage);
         }
+
+        // Settings page initialization
+        const settingsForm = document.getElementById('settings-form');
+        if (settingsForm) {
+            const loader = document.getElementById('settings-loader');
+            const concurrencyInput = document.getElementById('concurrency');
+
+            if (loader && concurrencyInput) {
+                loader.style.display = 'block';
+                settingsForm.style.display = 'none';
+
+                fetch('/api/settings')
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Failed to fetch settings');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        concurrencyInput.value = data.concurrency;
+                        loader.style.display = 'none';
+                        settingsForm.style.display = 'block';
+                    })
+                    .catch(error => {
+                        console.error('Error loading settings:', error);
+                        loader.innerHTML = '<p class="text-danger">Failed to load settings. Please try again later.</p>';
+                        if (typeof showToast === 'function') {
+                            showToast('Error loading settings. Please try again.', 'error');
+                        }
+                    });
+            }
+        }
     });
 </script>
 </body>
