@@ -15,14 +15,19 @@
                 <p th:text="${totalTestRuns}">-</p>
             </div>
             <div class="card">
-                <i class="fas fa-check-circle"></i>
+                <i class="fas fa-check"></i>
                 <h3>Passed</h3>
                 <p th:text="${passedTests}">-</p>
             </div>
             <div class="card">
-                <i class="fas fa-times-circle"></i>
+                <i class="fas fa-xmark"></i>
                 <h3>Failed</h3>
                 <p th:text="${failedTests}">-</p>
+            </div>
+            <div class="card">
+                <i class="fas fa-ban"></i>
+                <h3>Cancelled</h3>
+                <p th:text="${cancelledTests}">-</p>
             </div>
             <div class="card">
                 <i class="fas fa-running"></i>

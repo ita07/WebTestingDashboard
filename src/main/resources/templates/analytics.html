@@ -23,11 +23,11 @@
             <tbody>
                 <tr>
                     <td>Average Execution Time</td>
-                    <td id="avg-execution-time" th:text="${avgDuration &lt; 60 ? #numbers.formatDecimal(avgDuration, 1, 2) + ' sec' : (avgDuration &lt; 3600 ? #numbers.formatDecimal(avgDuration / 60, 1, 2) + ' min' : #numbers.formatDecimal(avgDuration / 3600, 1, 2) + ' h')}">-</td>
+                    <td id="avg-execution-time" th:text="${avgDuration}">-</td>
                 </tr>
                 <tr>
                     <td>Success Rate</td>
-                    <td id="success-rate" th:text="${successRate + '%'}">-</td>
+                    <td id="success-rate" th:text="${successRate}">-</td>
                 </tr>
             </tbody>
         </table>

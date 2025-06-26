@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ita07.webTestingDashboard.repository.TestRunRepository;
 import com.ita07.webTestingDashboard.serviceImpl.SharedDataServiceImpl;
+import com.ita07.webTestingDashboard.utils.FormatUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -19,6 +20,9 @@ public class AnalyticsController {
     @Autowired
     private SharedDataServiceImpl sharedDataService;
 
+    @Autowired
+    private FormatUtils formatUtils;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @GetMapping("/analytics")
@@ -26,26 +30,13 @@ public class AnalyticsController {
         // Add any data needed for analytics here
         long totalTestRuns = sharedDataService.getTotalTestRuns();
 
-        long successfulTestRuns = testRunRepository.findAll().stream()
-                .filter(sharedDataService::isTestRunSuccessful)
-                .count();
+        long successfulTestRuns = sharedDataService.getSuccessfulTestRuns();
         double successRate = totalTestRuns > 0 ? (successfulTestRuns * 100.0 / totalTestRuns) : 0;
-        model.addAttribute("successRate", successRate);
 
-         double avgDuration = testRunRepository.findAll().stream()
-                .mapToDouble(testRun -> {
-                    try {
-                        JsonNode resultsJson = objectMapper.readTree(testRun.getResultsJson());
-                        return resultsJson.findValues("executionTimeMillis").stream()
-                                .mapToDouble(JsonNode::asDouble)
-                                .sum() / 1000.0; // Convert milliseconds to seconds
-                    } catch (Exception e) {
-                        return 0;
-                    }
-                })
-                .average()
-                .orElse(0);
-        model.addAttribute("avgDuration", avgDuration);
+        double avgDuration = sharedDataService.getAverageTestRunDuration();
+
+        model.addAttribute("successRate", formatUtils.formatPercentage(successRate));
+        model.addAttribute("avgDuration", formatUtils.formatDuration(avgDuration));
 
         // Set layout attributes
         model.addAttribute("activeTab", "analytics");

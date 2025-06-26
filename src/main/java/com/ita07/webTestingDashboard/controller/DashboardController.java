@@ -33,18 +33,18 @@ public class DashboardController {
     @GetMapping("/dashboard")
     public String getDashboard(Model model) {
         long totalTestRuns = sharedDataService.getTotalTestRuns();
-        model.addAttribute("totalTestRuns", totalTestRuns);
 
-        long successfulTestRuns = testRunRepository.findAll().stream()
-                .filter(sharedDataService::isTestRunSuccessful)
-                .count();
+        long successfulTestRuns = sharedDataService.getSuccessfulTestRuns();
 
-        long failedTestRuns = totalTestRuns - successfulTestRuns;
-        model.addAttribute("failedTests", failedTestRuns);
-
-        model.addAttribute("passedTests", successfulTestRuns);
+        long cancelledTestRuns = sharedDataService.getCancelledTestRuns();
+        long failedTestRuns = totalTestRuns - successfulTestRuns - cancelledTestRuns;
 
         Map<String, Object> status = testController.getTestExecutionStatus();
+
+        model.addAttribute("totalTestRuns", totalTestRuns);
+        model.addAttribute("failedTests", failedTestRuns);
+        model.addAttribute("passedTests", successfulTestRuns);
+        model.addAttribute("cancelledTests", cancelledTestRuns);
         model.addAttribute("runningTests", status.get("activeTestRuns"));
         model.addAttribute("queuedTests", status.get("queuedTestRuns"));
 
