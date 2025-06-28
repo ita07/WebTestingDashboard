@@ -3,162 +3,417 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title th:text="${applicationName} + ' - Login'">Web Testing Dashboard - Login</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/styles.css">
+    <title th:text="${applicationName} + ' - Login'">Testing Dashboard - Login</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: 'Poppins', sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: #333;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
             overflow: hidden;
         }
-        .login-wrapper {
-            perspective: 1000px;
+
+        /* Floating shapes background */
+        .shape {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            animation: float 6s ease-in-out infinite;
         }
-        .login-container {
-            background: #ffffff;
-            padding: 50px;
-            border-radius: 20px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-            width: 400px;
-            text-align: center;
-            animation: fadeIn 1s ease-in-out;
-            transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+
+        .shape:nth-child(1) {
+            width: 80px;
+            height: 80px;
+            top: 10%;
+            left: 20%;
+            animation-delay: 0s;
         }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
+
+        .shape:nth-child(2) {
+            width: 60px;
+            height: 60px;
+            top: 70%;
+            left: 80%;
+            animation-delay: -2s;
         }
-        .login-wrapper:hover .login-container {
-            transform: translateY(-10px) rotateX(5deg) scale(1.02);
-            box-shadow: 0 25px 45px rgba(0, 0, 0, 0.2);
+
+        .shape:nth-child(3) {
+            width: 100px;
+            height: 100px;
+            top: 40%;
+            left: 10%;
+            animation-delay: -4s;
         }
-        .login-container h2 {
-            margin-bottom: 30px;
-            color: #444;
-            font-weight: 600;
-            font-size: 28px;
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(180deg); }
         }
-        .login-container .input-group {
-            margin-bottom: 20px;
-            text-align: left;
-        }
-        .login-container label {
-            display: block;
-            margin-bottom: 10px;
-            font-weight: 400;
-            color: #666;
-            font-size: 14px;
-        }
-        .login-container input[type="text"],
-        .login-container input[type="password"] {
-            width: calc(100% - 20px);
-            padding: 12px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            font-size: 16px;
-            transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.2s ease;
-        }
-        .login-container input[type="text"]:focus,
-        .login-container input[type="password"]:focus {
-            border-color: #ff9a9e;
-            box-shadow: 0 0 8px rgba(255, 154, 158, 0.4);
-            transform: scale(1.02);
-            outline: none;
-        }
-        .login-container button[type="submit"] {
-            width: 100%;
-            padding: 14px;
-            background: linear-gradient(135deg, #ff758c 0%, #ff7eb3 100%);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 18px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-        }
-        .login-container button[type="submit"]:hover {
-            background: linear-gradient(135deg, #ff5a75 0%, #ff6a9b 100%);
-            transform: translateY(-2px) scale(1.03);
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
-        }
-        .login-container button[type="submit"]:active {
-            transform: translateY(0) scale(1.01);
-            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
-        }
-        .error-message {
-            padding: 12px;
-            margin-bottom: 20px;
-            border-radius: 8px;
-            background-color: #ffe6e6;
-            color: #dc3545;
-            border: 1px solid #ffcccc;
-            text-align: left;
-            display: none;
-        }
-        .error-message.show {
-            display: block;
-        }
+
         .environment-badge {
             position: fixed;
             top: 20px;
             right: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            color: white;
             padding: 8px 16px;
-            background-color: #f8f9fa;
+            border-radius: 25px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            z-index: 1000;
+        }
+
+        .login-wrapper {
+            display: flex;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(20px);
             border-radius: 20px;
-            font-size: 14px;
-            color: #666;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+            box-shadow: 0 25px 45px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            max-width: 900px;
+            width: 100%;
+            min-height: 500px;
+        }
+
+        .login-info {
+            flex: 1;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+            padding: 60px 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            color: white;
+            position: relative;
+        }
+
+        .login-info::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="20" cy="20" r="1" fill="white" opacity="0.1"/><circle cx="80" cy="40" r="0.5" fill="white" opacity="0.1"/><circle cx="40" cy="80" r="1.5" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+            opacity: 0.3;
+            pointer-events: none;
+        }
+
+        .info-content {
+            position: relative;
+            z-index: 2;
+        }
+
+        .info-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            line-height: 1.2;
+        }
+
+        .info-subtitle {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+
+        .features {
+            list-style: none;
+        }
+
+        .features li {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            opacity: 0.9;
+        }
+
+        .features li::before {
+            content: '✓';
+            margin-right: 12px;
+            font-weight: bold;
+            color: #4ade80;
+        }
+
+        .login-form {
+            flex: 1;
+            background: white;
+            padding: 60px 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .form-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .logo-circle {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            color: white;
+            font-size: 24px;
+            font-weight: 600;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+        }
+
+        .form-title {
+            color: #2d3748;
+            font-size: 1.8rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .form-subtitle {
+            color: #718096;
+            font-size: 0.95rem;
+        }
+
+        .message {
+            padding: 12px 16px;
+            border-radius: 10px;
+            margin-bottom: 25px;
+            font-size: 0.9rem;
+            text-align: center;
+            font-weight: 500;
+        }
+
+        .message.error {
+            background: #fed7d7;
+            color: #c53030;
+            border: 1px solid #feb2b2;
+        }
+
+        .message.success {
+            background: #c6f6d5;
+            color: #2f855a;
+            border: 1px solid #9ae6b4;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-label {
+            display: block;
+            color: #4a5568;
+            font-size: 0.9rem;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+
+        .input-group {
+            position: relative;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 16px 20px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 1rem;
+            background: #f7fafc;
+            transition: all 0.3s ease;
+            outline: none;
+        }
+
+        .form-input:focus {
+            border-color: #667eea;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #a0aec0;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 6px;
+            transition: color 0.2s ease;
+        }
+
+        .password-toggle:hover {
+            color: #4a5568;
+        }
+
+        .submit-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 16px;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.5);
+        }
+
+        .submit-btn:active {
+            transform: translateY(0);
+        }
+
+        @media (max-width: 768px) {
+            .login-wrapper {
+                flex-direction: column;
+                max-width: 400px;
+            }
+
+            .login-info {
+                padding: 40px 30px;
+                text-align: center;
+            }
+
+            .info-title {
+                font-size: 2rem;
+            }
+
+            .login-form {
+                padding: 40px 30px;
+            }
+
+            .shape {
+                display: none;
+            }
+        }
+
+        /* Ensure SVG icons are visible */
+        .password-toggle img {
+            width: 20px;
+            height: 20px;
+            display: inline;
+            cursor: pointer;
+        }
+
+        .password-toggle img.icon-hide {
+            display: none;
         }
     </style>
 </head>
 <body>
-    <!-- Environment Badge -->
-    <div class="environment-badge" th:if="${environment}" th:text="${environment}">
-        DEFAULT
+<div class="shape"></div>
+<div class="shape"></div>
+<div class="shape"></div>
+
+<div class="environment-badge" th:if="${environment}" th:text="${environment}">
+    DEFAULT
+</div>
+
+<div class="login-wrapper">
+    <div class="login-info">
+        <div class="info-content">
+            <h2 class="info-title">Welcome to Testing Hub</h2>
+            <p class="info-subtitle">Your comprehensive testing dashboard for seamless development workflow and quality assurance.</p>
+            <ul class="features">
+                <li>Real-time test monitoring</li>
+                <li>Automated reporting</li>
+                <li>Team collaboration tools</li>
+                <li>Advanced analytics</li>
+            </ul>
+        </div>
     </div>
 
-    <div class="login-wrapper">
-        <div class="login-container">
-            <h2 th:text="${applicationName ?: 'Web Testing Dashboard'}">Web Testing Dashboard</h2>
+    <div class="login-form">
+        <div class="form-header">
+            <div class="logo-circle">T</div>
+            <h1 class="form-title" th:text="${applicationName ?: 'Sign In'}">Sign In</h1>
+            <p class="form-subtitle">Enter your credentials to access your dashboard</p>
+        </div>
 
-            <!-- Error Messages -->
-            <div th:if="${param.error}" class="error-message show">
-                Invalid username or password. Please try again.
-            </div>
-            <div th:if="${param.logout}" class="error-message show" style="background-color: #e8f5e9; color: #28a745; border-color: #c8e6c9;">
-                You have been logged out successfully.
-            </div>
+        <div th:if="${param.error}" class="message error">
+            Invalid username or password. Please try again.
+        </div>
+        <div th:if="${param.logout}" class="message success">
+            You have been logged out successfully.
+        </div>
 
-            <form th:action="@{/login}" method="post">
+        <form th:action="@{/login}" method="post">
+            <div class="form-group">
+                <label for="username" class="form-label">Username</label>
                 <div class="input-group">
-                    <label for="username">Username</label>
                     <input type="text"
                            id="username"
                            name="username"
+                           class="form-input"
                            placeholder="Enter your username"
                            th:value="${param.username}"
-                           required>
+                           required
+                           autocomplete="username">
                 </div>
+            </div>
+
+            <div class="form-group">
+                <label for="password" class="form-label">Password</label>
                 <div class="input-group">
-                    <label for="password">Password</label>
                     <input type="password"
                            id="password"
                            name="password"
+                           class="form-input"
                            placeholder="Enter your password"
-                           required>
+                           required
+                           autocomplete="current-password">
+                    <button type="button" class="password-toggle">
+                        <img src="/icons/eye.svg" alt="Show Password" class="icon-show" style="display: inline;">
+                        <img src="/icons/eye-off.svg" alt="Hide Password" class="icon-hide" style="display: none;">
+                    </button>
                 </div>
-                <button type="submit">Sign In</button>
-            </form>
-        </div>
+            </div>
+
+            <button type="submit" class="submit-btn">Access Dashboard</button>
+        </form>
     </div>
+</div>
+
+<script>
+    document.querySelector('.password-toggle').addEventListener('click', function() {
+        const passwordInput = document.getElementById('password');
+        const showIcon = this.querySelector('.icon-show');
+        const hideIcon = this.querySelector('.icon-hide');
+
+        const isPassword = passwordInput.type === 'password';
+        passwordInput.type = isPassword ? 'text' : 'password';
+
+        showIcon.style.display = isPassword ? 'none' : 'inline';
+        hideIcon.style.display = isPassword ? 'inline' : 'none';
+    });
+
+    window.addEventListener('load', function() {
+        const usernameInput = document.getElementById('username');
+        usernameInput.focus();
+    });
+</script>
 </body>
 </html>

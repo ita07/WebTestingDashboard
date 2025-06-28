@@ -30,8 +30,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authz -> authz
                         // Public resources and documentation
                         .requestMatchers(
-                            "/static/**",
                             "/screenshots/**",
+                            "/icons/**",
                             "/reports/**",
                             "/reports-viewer/**",
                             "/swagger-ui/**",
