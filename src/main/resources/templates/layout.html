@@ -240,12 +240,18 @@
                         variablesList.innerHTML = `
                             <p class="text-muted">Use these variables in your action parameters:</p>
                             <div class="variables-grid">
-                                ${variables.map(variable => `
-                                    <div class="variable-chip" onclick="copyToClipboard('${variable}')">
-                                        <code>${variable}</code>
-                                        <i class="fas fa-copy"></i>
-                                    </div>
-                                `).join('')}
+                                ${variables.map(variable => {
+                                    const actualValue = getActualValue(variable, data);
+                                    return `
+                                        <div class="variable-chip" onclick="copyToClipboard('${variable}')" title="Click to copy: ${variable}">
+                                            <div class="variable-display">
+                                                <span class="variable-name">${variable.replace(/^\$\{|\}$/g, '')}</span>
+                                                <span class="variable-actual-value">${actualValue}</span>
+                                            </div>
+                                            <i class="fas fa-copy"></i>
+                                        </div>
+                                    `;
+                                }).join('')}
                             </div>
                             <p class="text-info"><i class="fas fa-info-circle"></i> Click on any variable to copy it to clipboard</p>
                         `;
@@ -267,6 +273,26 @@
                     }
                 }
                 return variables;
+            };
+
+            // Function to get the actual value for a variable
+            const getActualValue = (variable, data) => {
+                // Remove ${ and } from variable name
+                const path = variable.replace(/^\$\{|\}$/g, '');
+                const parts = path.split('.');
+                let current = data;
+
+                for (const part of parts) {
+                    if (current && typeof current === 'object' && current.hasOwnProperty(part)) {
+                        current = current[part];
+                    } else {
+                        return 'undefined';
+                    }
+                }
+
+                // Truncate long values for display
+                const value = String(current);
+                return value.length > 30 ? value.substring(0, 27) + '...' : value;
             };
 
             // Copy to clipboard function

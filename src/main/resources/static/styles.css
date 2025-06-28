@@ -538,13 +538,15 @@ tr:hover {
     background: white;
     border: 1px solid var(--primary-color);
     border-radius: 1rem;
-    padding: 0.5rem 1rem;
+    padding: 0.75rem 1rem;
     cursor: pointer;
     transition: all 0.2s ease;
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    justify-content: space-between;
+    gap: 0.75rem;
     font-size: 0.9rem;
+    min-width: 200px;
 }
 
 .variable-chip:hover {
@@ -554,6 +556,38 @@ tr:hover {
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
+.variable-display {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.variable-name {
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    font-size: 0.85rem;
+    color: var(--primary-color);
+}
+
+.variable-chip:hover .variable-name {
+    color: white;
+}
+
+.variable-actual-value {
+    font-family: 'Courier New', monospace;
+    font-size: 0.8rem;
+    color: #666;
+    word-break: break-all;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.variable-chip:hover .variable-actual-value {
+    color: rgba(255, 255, 255, 0.9);
+}
+
 .variable-chip code {
     background: transparent;
     border: none;
@@ -561,11 +595,6 @@ tr:hover {
     color: inherit;
     font-family: 'Courier New', monospace;
     font-weight: bold;
-}
-
-.variable-chip i {
-    font-size: 0.8rem;
-    opacity: 0.7;
 }
 
 .text-info {
