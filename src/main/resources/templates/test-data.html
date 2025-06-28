@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Data</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<!-- Content fragment that will be inserted into layout.html -->
+<div th:fragment="content">
+    <div class="test-data-header">
+        <h2><i class="fas fa-database"></i> Test Data Management</h2>
+        <p>Create and manage test data sets for dynamic test execution. Use variables like <code>${user.name}</code> in your tests.</p>
+        <button id="create-data-btn" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Create New Data Set
+        </button>
+    </div>
+
+    <!-- Data Sets Table -->
+    <div class="data-sets-section">
+        <h3><i class="fas fa-table"></i> Existing Data Sets</h3>
+        <div id="data-sets-container">
+            <div id="loading-data-sets" class="text-center">
+                <i class="fas fa-spinner fa-spin"></i> Loading data sets...
+            </div>
+            <div id="no-data-sets" style="display: none;">
+                <p class="text-muted">No data sets found. Create your first data set to get started.</p>
+            </div>
+            <table id="data-sets-table" style="display: none;">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Description</th>
+                        <th>Created</th>
+                        <th>Updated</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="data-sets-tbody">
+                    <!-- Dynamic content -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Data Set Editor Modal -->
+    <div id="data-editor-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">Create Data Set</h3>
+            </div>
+            <div class="modal-body">
+                <form id="data-set-form">
+                    <input type="hidden" id="data-set-id" name="id">
+
+                    <div class="form-group">
+                        <label for="data-set-name">
+                            <i class="fas fa-tag"></i> Name *
+                        </label>
+                        <input type="text" id="data-set-name" name="name" required
+                               placeholder="e.g., Login Credentials, User Profiles">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="data-set-description">
+                            <i class="fas fa-info-circle"></i> Description
+                        </label>
+                        <input type="text" id="data-set-description" name="description"
+                               placeholder="Brief description of this data set">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="data-json-editor">
+                            <i class="fas fa-code"></i> JSON Data *
+                        </label>
+                        <div class="json-editor-container">
+                            <textarea id="data-json-editor" name="dataJson" required
+                                      placeholder='{
+  "user": {
+    "username": "your_username",
+    "password": "your_password",
+    "email": "your_email@domain.com"
+  },
+  "urls": {
+    "baseUrl": "https://your-site.com",
+    "loginPage": "/login",
+    "dashboardPage": "/dashboard"
+  },
+  "testData": {
+    "firstName": "John",
+    "lastName": "Doe",
+    "phoneNumber": "+1-555-0123"
+  }
+}'>
+                            </textarea>
+                            <div class="json-validation-status">
+                                <span id="json-valid" class="validation-success" style="display: none;">
+                                    <i class="fas fa-check-circle"></i> Valid JSON
+                                </span>
+                                <span id="json-invalid" class="validation-error" style="display: none;">
+                                    <i class="fas fa-times-circle"></i> <span id="json-error-message"></span>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Variable Preview -->
+                    <div class="form-group">
+                        <label>
+                            <i class="fas fa-eye"></i> Variable Preview
+                        </label>
+                        <div id="variable-preview" class="variable-preview-container">
+                            <p class="text-muted">Enter valid JSON above to see available variables</p>
+                        </div>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" id="cancel-btn">Cancel</button>
+                        <button type="submit" class="btn btn-primary" id="save-btn">
+                            <i class="fas fa-save"></i> Save Data Set
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="delete-confirmation-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Confirm Deletion</h3>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the data set "<span id="delete-data-name"></span>"?</p>
+                <p class="text-warning"><i class="fas fa-exclamation-triangle"></i> This action cannot be undone.</p>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancel-delete-btn">Cancel</button>
+                    <button type="button" class="btn btn-danger" id="confirm-delete-btn">
+                        <i class="fas fa-trash"></i> Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.test-data-header {
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #e3e6f0;
+}
+
+.test-data-header h2 {
+    margin-bottom: 0.5rem;
+}
+
+.test-data-header p {
+    margin-bottom: 1rem;
+    color: var(--text-color);
+}
+
+.test-data-header code {
+    background: #f8f9fa;
+    padding: 0.2rem 0.4rem;
+    border-radius: 0.25rem;
+    font-family: 'Courier New', monospace;
+    color: var(--primary-color);
+}
+
+.data-sets-section {
+    margin-bottom: 2rem;
+}
+
+.data-sets-section h3 {
+    margin-bottom: 1rem;
+    color: var(--primary-color);
+}
+
+/* Modal Styles */
+.modal {
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.modal-content {
+    background-color: white;
+    border-radius: 0.5rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    width: 90%;
+    max-width: 800px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.modal-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid #e3e6f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    margin: 0;
+    color: var(--primary-color);
+}
+
+.modal-body {
+    padding: 1.5rem;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+    margin-top: 1.5rem;
+}
+
+/* JSON Editor Styles */
+.json-editor-container {
+    position: relative;
+}
+
+#data-json-editor {
+    width: 100%;
+    min-height: 200px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+    border: 1px solid #d1d3e2;
+    border-radius: 0.35rem;
+    padding: 1rem;
+    resize: vertical;
+}
+
+.json-validation-status {
+    margin-top: 0.5rem;
+}
+
+.validation-success {
+    color: var(--success-color);
+}
+
+.validation-error {
+    color: var(--error-color);
+}
+
+/* Variable Preview Styles */
+.variable-preview-container {
+    background: #f8f9fa;
+    border: 1px solid #e3e6f0;
+    border-radius: 0.35rem;
+    padding: 1rem;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.variable-item {
+    display: flex;
+    align-items: center;
+    padding: 0.25rem 0;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+}
+
+.variable-key {
+    color: var(--primary-color);
+    font-weight: bold;
+    margin-right: 0.5rem;
+}
+
+.variable-value {
+    color: var(--text-color);
+    background: white;
+    padding: 0.1rem 0.3rem;
+    border-radius: 0.2rem;
+    border: 1px solid #e3e6f0;
+}
+
+/* Action Buttons */
+.action-btn {
+    padding: 0.3rem 0.6rem;
+    border: none;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    font-size: 0.8rem;
+    margin-right: 0.25rem;
+}
+
+.btn-edit {
+    background: var(--info-color);
+    color: white;
+}
+
+.btn-edit:hover {
+    background: #258391;
+}
+
+.btn-delete {
+    background: var(--error-color);
+    color: white;
+}
+
+.btn-delete:hover {
+    background: #be3c2e;
+}
+</style>
+</div>
+</body>
+</html>

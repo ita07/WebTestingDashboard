@@ -21,6 +21,8 @@
                     class="fas fa-hammer"></i> Test Builder</a></li>
             <li><a th:href="@{/test-runner}" th:class="${activeTab == 'test-runner' ? 'active' : ''}"><i
                     class="fas fa-play"></i> Test Runner</a></li>
+            <li><a th:href="@{/test-data}" th:class="${activeTab == 'test-data' ? 'active' : ''}"><i
+                    class="fas fa-database"></i> Test Data</a></li>
             <li><a th:href="@{/analytics}" th:class="${activeTab == 'analytics' ? 'active' : ''}"><i
                     class="fas fa-chart-line"></i> Analytics</a></li>
             <li><a th:href="@{/reports}" th:class="${activeTab == 'reports' ? 'active' : ''}"><i
@@ -163,6 +165,7 @@
             const actionsContainer = document.getElementById('actions-container');
             const jsonPreview = document.getElementById('json-preview');
             const form = document.getElementById('test-builder-form');
+            const testDataSelect = document.getElementById('test-data');
 
             if (!form || !addActionBtn || !actionsContainer || !jsonPreview) {
                 showToast('Some required elements for the Test Builder are missing. Please refresh the page or contact support if the issue persists.', "error");
@@ -173,20 +176,107 @@
             let locatorTypes = [];
             let selectByTypes = [];
 
-            // Fetch all required data
+            // Fetch all required data including test data sets
             try {
-                const [actionsResponse, locatorTypesResponse, selectByTypesResponse] = await Promise.all([
+                const [actionsResponse, locatorTypesResponse, selectByTypesResponse, testDataResponse] = await Promise.all([
                     fetch('/api/actions'),
                     fetch('/api/actions/locators'),
-                    fetch('/api/actions/select-by')
+                    fetch('/api/actions/select-by'),
+                    fetch('/api/testdata')
                 ]);
                 actionDefinitions = await actionsResponse.json();
                 locatorTypes = await locatorTypesResponse.json();
                 selectByTypes = await selectByTypesResponse.json();
+
+                // Populate test data dropdown
+                const testDataSets = await testDataResponse.json();
+                if (testDataSelect) {
+                    testDataSelect.innerHTML = '<option value="">None - No test data</option>';
+                    testDataSets.forEach(dataSet => {
+                        const option = document.createElement('option');
+                        option.value = dataSet.id;
+                        option.textContent = `${dataSet.name}${dataSet.description ? ' - ' + dataSet.description : ''}`;
+                        testDataSelect.appendChild(option);
+                    });
+
+                    // Add change handler to show available variables when test data is selected
+                    testDataSelect.addEventListener('change', function() {
+                        showTestDataPreview(this.value, testDataSets);
+                    });
+                }
             } catch (error) {
                 showToast('Failed to load Test Builder data. Please try again or contact support if the issue persists.', "error");
                 return;
             }
+
+            // Function to show test data variables preview
+            const showTestDataPreview = (selectedId, testDataSets) => {
+                const previewContainer = document.getElementById('test-data-variables-preview');
+                if (!previewContainer) {
+                    // Create preview container if it doesn't exist
+                    const container = document.createElement('div');
+                    container.id = 'test-data-variables-preview';
+                    container.className = 'test-data-preview';
+                    container.innerHTML = `
+                        <h4><i class="fas fa-eye"></i> Available Variables</h4>
+                        <div id="variables-list"></div>
+                    `;
+                    testDataSelect.parentNode.appendChild(container);
+                }
+
+                const variablesList = document.getElementById('variables-list');
+                if (!selectedId) {
+                    document.getElementById('test-data-variables-preview').style.display = 'none';
+                    return;
+                }
+
+                const selectedDataSet = testDataSets.find(ds => ds.id == selectedId);
+                if (selectedDataSet) {
+                    try {
+                        const data = JSON.parse(selectedDataSet.dataJson);
+                        const variables = extractVariablesFromData(data);
+
+                        document.getElementById('test-data-variables-preview').style.display = 'block';
+                        variablesList.innerHTML = `
+                            <p class="text-muted">Use these variables in your action parameters:</p>
+                            <div class="variables-grid">
+                                ${variables.map(variable => `
+                                    <div class="variable-chip" onclick="copyToClipboard('${variable}')">
+                                        <code>${variable}</code>
+                                        <i class="fas fa-copy"></i>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <p class="text-info"><i class="fas fa-info-circle"></i> Click on any variable to copy it to clipboard</p>
+                        `;
+                    } catch (error) {
+                        variablesList.innerHTML = '<p class="text-danger">Error parsing test data JSON</p>';
+                    }
+                }
+            };
+
+            // Function to extract variables from test data
+            const extractVariablesFromData = (data, prefix = '') => {
+                const variables = [];
+                for (const key in data) {
+                    const path = prefix ? `${prefix}.${key}` : key;
+                    if (typeof data[key] === 'object' && data[key] !== null) {
+                        variables.push(...extractVariablesFromData(data[key], path));
+                    } else {
+                        variables.push(`\${${path}}`);
+                    }
+                }
+                return variables;
+            };
+
+            // Copy to clipboard function
+            window.copyToClipboard = function(text) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showToast(`Copied "${text}" to clipboard!`, 'success', 2000);
+                }).catch(() => {
+                    showToast('Failed to copy to clipboard', 'error');
+                });
+            };
 
             // Create input field based on parameter type
             const createInputField = (param, key) => {
@@ -645,6 +735,265 @@
                         }
                     });
             }
+        }
+
+        // Test Data page initialization
+        const initTestDataPage = () => {
+            const createDataBtn = document.getElementById('create-data-btn');
+            const dataEditorModal = document.getElementById('data-editor-modal');
+            const deleteConfirmationModal = document.getElementById('delete-confirmation-modal');
+            const dataSetForm = document.getElementById('data-set-form');
+            const jsonEditor = document.getElementById('data-json-editor');
+            const variablePreview = document.getElementById('variable-preview');
+
+            if (!createDataBtn || !dataEditorModal || !dataSetForm) return;
+
+            let currentEditingId = null;
+
+            // Load and display existing data sets
+            const loadDataSets = async () => {
+                const loadingDiv = document.getElementById('loading-data-sets');
+                const noDataDiv = document.getElementById('no-data-sets');
+                const tableDiv = document.getElementById('data-sets-table');
+                const tbody = document.getElementById('data-sets-tbody');
+
+                try {
+                    const response = await fetch('/api/testdata');
+                    const dataSets = await response.json();
+
+                    loadingDiv.style.display = 'none';
+
+                    if (dataSets.length === 0) {
+                        noDataDiv.style.display = 'block';
+                        tableDiv.style.display = 'none';
+                    } else {
+                        noDataDiv.style.display = 'none';
+                        tableDiv.style.display = 'table';
+
+                        tbody.innerHTML = dataSets.map(dataSet => {
+                            const createdDate = new Date(dataSet.createdAt).toLocaleDateString();
+                            const updatedDate = new Date(dataSet.updatedAt).toLocaleDateString();
+
+                            return `
+                                <tr>
+                                    <td><strong>${escapeHtml(dataSet.name)}</strong></td>
+                                    <td>${escapeHtml(dataSet.description || 'No description')}</td>
+                                    <td>${createdDate}</td>
+                                    <td>${updatedDate}</td>
+                                    <td>
+                                        <button class="action-btn btn-edit" onclick="editDataSet(${dataSet.id})">
+                                            <i class="fas fa-edit"></i> Edit
+                                        </button>
+                                        <button class="action-btn btn-delete" onclick="deleteDataSet(${dataSet.id}, '${escapeHtml(dataSet.name)}')">
+                                            <i class="fas fa-trash"></i> Delete
+                                        </button>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('');
+                    }
+                } catch (error) {
+                    console.error('Error loading data sets:', error);
+                    loadingDiv.innerHTML = '<p class="text-danger">Failed to load data sets. Please try again.</p>';
+                    showToast('Error loading data sets', 'error');
+                }
+            };
+
+            // Extract variable names from JSON
+            const extractVariables = (jsonString) => {
+                try {
+                    const data = JSON.parse(jsonString);
+                    const variables = [];
+
+                    const extractFromObject = (obj, prefix = '') => {
+                        for (const key in obj) {
+                            const path = prefix ? `${prefix}.${key}` : key;
+                            if (typeof obj[key] === 'object' && obj[key] !== null) {
+                                extractFromObject(obj[key], path);
+                            } else {
+                                variables.push(`\${${path}}`);
+                            }
+                        }
+                    };
+
+                    extractFromObject(data);
+                    return variables;
+                } catch {
+                    return ['Invalid JSON'];
+                }
+            };
+
+            // Escape HTML to prevent XSS
+            const escapeHtml = (text) => {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            };
+
+            // Validate and preview JSON
+            const validateAndPreviewJson = () => {
+                const jsonText = jsonEditor.value.trim();
+                const validIndicator = document.getElementById('json-valid');
+                const invalidIndicator = document.getElementById('json-invalid');
+                const errorMessage = document.getElementById('json-error-message');
+
+                if (!jsonText) {
+                    validIndicator.style.display = 'none';
+                    invalidIndicator.style.display = 'none';
+                    variablePreview.innerHTML = '<p class="text-muted">Enter JSON data to see available variables</p>';
+                    return false;
+                }
+
+                try {
+                    const data = JSON.parse(jsonText);
+                    validIndicator.style.display = 'inline';
+                    invalidIndicator.style.display = 'none';
+
+                    // Generate variable preview
+                    const variables = extractVariables(jsonText);
+                    if (variables.length > 0 && variables[0] !== 'Invalid JSON') {
+                        variablePreview.innerHTML = `
+                            <div class="variable-preview-list">
+                                ${variables.map(variable => `
+                                    <div class="variable-item">
+                                        <span class="variable-key">${variable}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `;
+                    } else {
+                        variablePreview.innerHTML = '<p class="text-muted">No variables found</p>';
+                    }
+                    return true;
+                } catch (error) {
+                    validIndicator.style.display = 'none';
+                    invalidIndicator.style.display = 'inline';
+                    errorMessage.textContent = error.message;
+                    variablePreview.innerHTML = '<p class="text-danger">Fix JSON errors to see variable preview</p>';
+                    return false;
+                }
+            };
+
+            // Event listeners
+            jsonEditor.addEventListener('input', validateAndPreviewJson);
+
+            createDataBtn.addEventListener('click', () => {
+                currentEditingId = null;
+                document.getElementById('modal-title').textContent = 'Create Data Set';
+                document.getElementById('data-set-id').value = '';
+                document.getElementById('data-set-name').value = '';
+                document.getElementById('data-set-description').value = '';
+                jsonEditor.value = '';
+                validateAndPreviewJson();
+                dataEditorModal.style.display = 'flex';
+            });
+
+            // Modal close functionality - updated to handle the new bin button
+            document.querySelectorAll('.modal-close, .modal-close-btn, #cancel-btn, #cancel-delete-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    dataEditorModal.style.display = 'none';
+                    deleteConfirmationModal.style.display = 'none';
+                });
+            });
+
+            // Form submission
+            dataSetForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+
+                if (!validateAndPreviewJson()) {
+                    showToast('Please fix JSON errors before saving', 'error');
+                    return;
+                }
+
+                const formData = {
+                    name: document.getElementById('data-set-name').value,
+                    description: document.getElementById('data-set-description').value,
+                    dataJson: jsonEditor.value
+                };
+
+                const saveBtn = document.getElementById('save-btn');
+                const originalText = saveBtn.innerHTML;
+                saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+                saveBtn.disabled = true;
+
+                try {
+                    const url = currentEditingId ? `/api/testdata/${currentEditingId}` : '/api/testdata';
+                    const method = currentEditingId ? 'PUT' : 'POST';
+
+                    const response = await fetch(url, {
+                        method: method,
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(formData)
+                    });
+
+                    if (response.ok) {
+                        showToast(`Data set ${currentEditingId ? 'updated' : 'created'} successfully`, 'success');
+                        dataEditorModal.style.display = 'none';
+                        loadDataSets();
+                    } else {
+                        throw new Error('Failed to save data set');
+                    }
+                } catch (error) {
+                    console.error('Error saving data set:', error);
+                    showToast('Error saving data set', 'error');
+                } finally {
+                    saveBtn.innerHTML = originalText;
+                    saveBtn.disabled = false;
+                }
+            });
+
+            // Global functions for button clicks
+            window.editDataSet = async (id) => {
+                try {
+                    const response = await fetch(`/api/testdata/${id}`);
+                    const dataSet = await response.json();
+
+                    currentEditingId = id;
+                    document.getElementById('modal-title').textContent = 'Edit Data Set';
+                    document.getElementById('data-set-id').value = id;
+                    document.getElementById('data-set-name').value = dataSet.name;
+                    document.getElementById('data-set-description').value = dataSet.description || '';
+                    jsonEditor.value = dataSet.dataJson;
+                    validateAndPreviewJson();
+                    dataEditorModal.style.display = 'flex';
+                } catch (error) {
+                    console.error('Error loading data set:', error);
+                    showToast('Error loading data set', 'error');
+                }
+            };
+
+            window.deleteDataSet = (id, name) => {
+                // Close the edit modal first if it's open
+                dataEditorModal.style.display = 'none';
+
+                // Then show the delete confirmation modal
+                document.getElementById('delete-data-name').textContent = name;
+                deleteConfirmationModal.style.display = 'flex';
+
+                document.getElementById('confirm-delete-btn').onclick = async () => {
+                    try {
+                        const response = await fetch(`/api/testdata/${id}`, { method: 'DELETE' });
+                        if (response.ok) {
+                            showToast('Data set deleted successfully', 'success');
+                            deleteConfirmationModal.style.display = 'none';
+                            loadDataSets();
+                        } else {
+                            throw new Error('Failed to delete data set');
+                        }
+                    } catch (error) {
+                        console.error('Error deleting data set:', error);
+                        showToast('Error deleting data set', 'error');
+                    }
+                };
+            };
+
+            // Initial load
+            loadDataSets();
+        };
+
+        // Initialize Test Data page if elements are present
+        if (document.getElementById('create-data-btn')) {
+            requestIdleCallback(initTestDataPage);
         }
     });
 </script>

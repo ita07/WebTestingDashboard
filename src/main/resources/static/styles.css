@@ -485,7 +485,100 @@ tr:hover {
     font-size: 1rem; /* Consistent icon size */
 }
 
-.delete-test-btn:hover {
+/* Action Buttons */
+.action-btn {
+    padding: 0.3rem 0.6rem;
+    border: none;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    font-size: 0.8rem;
+    margin-right: 0.25rem;
+}
+
+.btn-edit {
+    background: var(--info-color);
+    color: white;
+}
+
+.btn-edit:hover {
+    background: #258391;
+}
+
+.btn-delete {
     background: var(--error-color);
     color: white;
+}
+
+.btn-delete:hover {
+    background: #be3c2e;
+}
+
+/* Test Data Integration Styles */
+.test-data-preview {
+    background: #f8f9fa;
+    border: 1px solid #e3e6f0;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-top: 1rem;
+}
+
+.test-data-preview h4 {
+    margin-bottom: 1rem;
+    color: var(--primary-color);
+}
+
+.variables-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.variable-chip {
+    background: white;
+    border: 1px solid var(--primary-color);
+    border-radius: 1rem;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.variable-chip:hover {
+    background: var(--primary-color);
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.variable-chip code {
+    background: transparent;
+    border: none;
+    padding: 0;
+    color: inherit;
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+}
+
+.variable-chip i {
+    font-size: 0.8rem;
+    opacity: 0.7;
+}
+
+.text-info {
+    color: var(--info-color) !important;
+    font-size: 0.85rem;
+    margin: 0;
+}
+
+.text-muted {
+    color: #6c757d !important;
+    font-size: 0.9rem;
+}
+
+.text-danger {
+    color: var(--error-color) !important;
 }
