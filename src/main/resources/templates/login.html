@@ -14,7 +14,7 @@
 
         body {
             font-family: 'Poppins', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background:  linear-gradient(135deg, #5da39a 0%, #777e50 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -163,21 +163,6 @@
             margin-bottom: 40px;
         }
 
-        .logo-circle {
-            width: 60px;
-            height: 60px;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 20px;
-            color: white;
-            font-size: 24px;
-            font-weight: 600;
-            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
-        }
-
         .form-title {
             color: #2d3748;
             font-size: 1.8rem;
@@ -265,7 +250,7 @@
 
         .submit-btn {
             width: 100%;
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            background: linear-gradient(135deg, #5da39a 0%, #777e50 100%);
             color: white;
             border: none;
             padding: 16px;
@@ -348,7 +333,6 @@
 
     <div class="login-form">
         <div class="form-header">
-            <div class="logo-circle">T</div>
             <h1 class="form-title" th:text="${applicationName ?: 'Sign In'}">Sign In</h1>
             <p class="form-subtitle">Enter your credentials to access your dashboard</p>
         </div>

@@ -2,60 +2,159 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
     <title>Test Execution Report</title>
-    <link rel="stylesheet" href="/styles.css">
     <style>
         body {
             font-family: Arial, sans-serif;
             margin: 20px;
             line-height: 1.6;
+            background-color: #f8f9fa;
         }
         .header {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 5px;
-            margin-bottom: 20px;
+            background: #ffffff;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .header h1 {
+            margin: 0 0 10px 0;
+            color: #2c3e50;
+            font-size: 2.5rem;
+        }
+        .header p {
+            margin: 0;
+            color: #7f8c8d;
+            font-size: 1.1rem;
         }
         .summary {
             display: flex;
-            justify-content: space-between;
+            gap: 20px;
             margin: 20px 0;
+            flex-wrap: wrap;
         }
         .status-box {
-            padding: 10px;
-            border-radius: 5px;
+            padding: 20px;
+            border-radius: 10px;
             text-align: center;
             flex: 1;
-            margin: 0 10px;
+            min-width: 200px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
-        .total { background-color: #e9ecef; }
-        .success { background-color: #d4edda; color: #155724; }
-        .failure { background-color: #f8d7da; color: #721c24; }
+        .status-box h3 {
+            margin: 0 0 10px 0;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        .status-box p {
+            margin: 0;
+            font-size: 2rem;
+            font-weight: bold;
+        }
+        .total {
+            background-color: #e3f2fd;
+            color: #1976d2;
+        }
+        .success {
+            background-color: #e8f5e8;
+            color: #2e7d32;
+        }
+        .failure {
+            background-color: #ffebee;
+            color: #d32f2f;
+        }
+
+        /* Table Styles - Ensure proper layout */
+        .table-container {
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-top: 30px;
+        }
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 20px;
-            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            table-layout: fixed; /* Ensure consistent column widths */
         }
-        th, td {
-            border: 1px solid #dee2e6;
-            padding: 12px;
+        thead {
+            background: linear-gradient(135deg, #5da39a 0%, #777e50 100%);
+        }
+        thead th {
+            color: white;
+            font-weight: 600;
+            padding: 15px 12px;
             text-align: left;
-            color: #212529; /* Set text color to dark for better visibility */
+            border: none;
+            font-size: 0.95rem;
+            white-space: nowrap;
         }
-        th {
+        tbody td {
+            padding: 12px;
+            border-bottom: 1px solid #e0e0e0;
+            color: #2c3e50;
+            vertical-align: top;
+        }
+        tbody tr:nth-child(even) {
             background-color: #f8f9fa;
-            font-weight: bold;
         }
-        tr:nth-child(even) { background-color: #f8f9fa; }
-        tr:hover { background-color: #f2f2f2; }
-        .status-success { color: #28a745; }
-        .status-failure { color: #dc3545; }
+        tbody tr:hover {
+            background-color: #e3f2fd;
+        }
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* Column widths */
+        th:nth-child(1), td:nth-child(1) { width: 8%; } /* # */
+        th:nth-child(2), td:nth-child(2) { width: 15%; } /* Action */
+        th:nth-child(3), td:nth-child(3) { width: 25%; } /* Details */
+        th:nth-child(4), td:nth-child(4) { width: 12%; } /* Status */
+        th:nth-child(5), td:nth-child(5) { width: 25%; } /* Message */
+        th:nth-child(6), td:nth-child(6) { width: 10%; } /* Time */
+        th:nth-child(7), td:nth-child(7) { width: 15%; } /* Screenshot */
+
+        .status-success {
+            color: #2e7d32;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+        }
+        .status-failure {
+            color: #d32f2f;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+        }
         .screenshot-link {
-            color: #007bff;
+            color: #1976d2;
             text-decoration: none;
+            font-weight: 500;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background-color: #e3f2fd;
+            display: inline-block;
+            transition: all 0.2s ease;
         }
         .screenshot-link:hover {
-            text-decoration: underline;
+            background-color: #1976d2;
+            color: white;
+            text-decoration: none;
+        }
+
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .summary {
+                flex-direction: column;
+            }
+            .status-box {
+                min-width: 100%;
+            }
+            table {
+                font-size: 0.85rem;
+            }
+            th, td {
+                padding: 8px 6px;
+            }
         }
     </style>
 </head>
@@ -80,41 +179,44 @@
         </div>
         <div class="status-box total">
             <h3>Total Execution Time</h3>
-            <p th:text="${totalExecutionTimeSeconds >= 3600 ? #numbers.formatDecimal(totalExecutionTimeSeconds / 3600.0, 1, 2) + ' h' : (totalExecutionTimeSeconds >= 60 ? #numbers.formatDecimal(totalExecutionTimeSeconds / 60.0, 1, 2) + ' min' : #numbers.formatDecimal(totalExecutionTimeSeconds, 1, 2) + ' sec')}">0.00 s</p>        </div>
+            <p th:text="${totalExecutionTimeSeconds >= 3600 ? #numbers.formatDecimal(totalExecutionTimeSeconds / 3600.0, 1, 2) + ' h' : (totalExecutionTimeSeconds >= 60 ? #numbers.formatDecimal(totalExecutionTimeSeconds / 60.0, 1, 2) + ' min' : #numbers.formatDecimal(totalExecutionTimeSeconds, 1, 2) + ' sec')}">0.00 s</p>
+        </div>
     </div>
 
-    <table>
-        <thead>
-            <tr>
-                <th>#</th>
-                <th>Action</th>
-                <th>Details</th>
-                <th>Status</th>
-                <th>Message</th>
-                <th>Time (s)</th>
-                <th>Screenshot</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr th:each="result, stat : ${results}">
-                <td th:text="${stat.count}">1</td>
-                <td th:text="${result.action}">Action</td>
-                <td>
-                    <span th:if="${result.details != null}" th:text="${result.details}"></span>
-                    <span th:if="${result.details == null}">N/A</span>
-                </td>
-                <td th:class="${'status-' + result.status}" th:text="${result.status}">Status</td>
-                <td th:text="${result.message}">Message</td>
-                <td th:text="${result.executionTimeMillis >= 3600000 ? #numbers.formatDecimal(result.executionTimeMillis / 3600000.0, 1, 2) + ' h' : (result.executionTimeMillis >= 60000 ? #numbers.formatDecimal(result.executionTimeMillis / 60000.0, 1, 2) + ' min' : #numbers.formatDecimal(result.executionTimeMillis / 1000.0, 1, 2) + ' sec')}">0.00 s</td>
-                <td>
-                    <a th:if="${result.screenshotPath}"
-                       th:href="${result.screenshotPath}"
-                       class="screenshot-link"
-                       target="_blank">View Screenshot</a>
-                    <span th:unless="${result.screenshotPath}">N/A</span>
-                </td>
-            </tr>
-        </tbody>
-    </table>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Action</th>
+                    <th>Details</th>
+                    <th>Status</th>
+                    <th>Message</th>
+                    <th>Time</th>
+                    <th>Screenshot</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr th:each="result, stat : ${results}">
+                    <td th:text="${stat.count}">1</td>
+                    <td th:text="${result.action}">Action</td>
+                    <td>
+                        <span th:if="${result.details != null}" th:text="${result.details}"></span>
+                        <span th:if="${result.details == null}">N/A</span>
+                    </td>
+                    <td th:class="${'status-' + result.status}" th:text="${result.status}">Status</td>
+                    <td th:text="${result.message}">Message</td>
+                    <td th:text="${result.executionTimeMillis >= 3600000 ? #numbers.formatDecimal(result.executionTimeMillis / 3600000.0, 1, 2) + ' h' : (result.executionTimeMillis >= 60000 ? #numbers.formatDecimal(result.executionTimeMillis / 60000.0, 1, 2) + ' min' : #numbers.formatDecimal(result.executionTimeMillis / 1000.0, 1, 2) + ' sec')}">0.00 s</td>
+                    <td>
+                        <a th:if="${result.screenshotPath}"
+                           th:href="${result.screenshotPath}"
+                           class="screenshot-link"
+                           target="_blank">View Screenshot</a>
+                        <span th:unless="${result.screenshotPath}">N/A</span>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
 </body>
 </html>
