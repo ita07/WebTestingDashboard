@@ -454,16 +454,216 @@ document.addEventListener('DOMContentLoaded', function () {
         const noTestsMessage = document.getElementById('no-tests-message');
         if (!container || !noTestsMessage) return;
 
-        let builtTests = JSON.parse(sessionStorage.getItem('builtTests') || '[]');
+        // Always get fresh data from sessionStorage
+        const getBuiltTests = () => JSON.parse(sessionStorage.getItem('builtTests') || '[]');
+        let builtTests = getBuiltTests();
+
+        // Global polling management
+        let activePollingIntervals = new Map(); // Map of testRunId -> intervalId
+        let isTabActive = true;
+
+        // Mutex for sessionStorage updates to prevent race conditions
+        let isUpdating = false;
+        const updateQueue = [];
+
+        // Synchronized update function
+        const updateTestInStorage = async (testRunId, updateFn) => {
+            return new Promise((resolve) => {
+                const processUpdate = () => {
+                    if (isUpdating) {
+                        // Queue this update
+                        updateQueue.push(() => processUpdate());
+                        return;
+                    }
+
+                    isUpdating = true;
+                    try {
+                        const currentTests = getBuiltTests();
+                        const testIndex = currentTests.findIndex(t => t.runId == testRunId);
+
+                        if (testIndex !== -1) {
+                            const updatedTest = updateFn(currentTests[testIndex]);
+                            if (updatedTest) {
+                                currentTests[testIndex] = updatedTest;
+                                sessionStorage.setItem('builtTests', JSON.stringify(currentTests));
+                                builtTests = currentTests; // Update local reference
+                                console.log(`Updated test ${testRunId} in storage`);
+                            }
+                        }
+
+                        // Only render if tab is active
+                        if (isTabActive) {
+                            renderTestCards();
+                        }
+
+                        resolve();
+                    } finally {
+                        isUpdating = false;
+                        // Process next update in queue
+                        if (updateQueue.length > 0) {
+                            const nextUpdate = updateQueue.shift();
+                            setTimeout(nextUpdate, 0);
+                        }
+                    }
+                };
+
+                processUpdate();
+            });
+        };
+
+        // Handle tab visibility changes
+        const handleVisibilityChange = () => {
+            isTabActive = !document.hidden;
+            if (isTabActive) {
+                console.log('Tab became active, resuming polling...');
+                // Refresh builtTests from sessionStorage when tab becomes active
+                builtTests = getBuiltTests();
+                renderTestCards(); // Re-render immediately with fresh data
+                resumePollingForRunningTests();
+            } else {
+                console.log('Tab became inactive, pausing polling...');
+                pauseAllPolling();
+            }
+        };
+
+        // Add visibility change listener
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        // Clean up function for when leaving the page
+        const cleanup = () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            clearAllPolling();
+        };
+
+        // Store cleanup function globally so it can be called when needed
+        window.testRunnerCleanup = cleanup;
 
         if (builtTests.length === 0) {
             noTestsMessage.style.display = 'block';
             return;
         }
 
+        // Check and resume any running tests when page loads
+        const resumePollingForRunningTests = () => {
+            // Always get fresh data when resuming
+            const currentTests = getBuiltTests();
+            const runningTests = currentTests.filter(test => test.status === 'running' && test.runId);
+
+            console.log(`Found ${runningTests.length} running tests to resume polling for:`, runningTests.map(t => t.runId));
+
+            runningTests.forEach(test => {
+                if (!activePollingIntervals.has(test.runId)) {
+                    console.log(`Starting polling for test run ${test.runId}`);
+                    startPollingForTest(test.runId);
+                } else {
+                    console.log(`Polling already active for test run ${test.runId}`);
+                }
+            });
+        };
+
+        const pauseAllPolling = () => {
+            const intervalCount = activePollingIntervals.size;
+            activePollingIntervals.forEach((intervalId, testRunId) => {
+                clearInterval(intervalId);
+                console.log(`Paused polling for test run ${testRunId}`);
+            });
+            activePollingIntervals.clear();
+            console.log(`Paused ${intervalCount} polling intervals`);
+        };
+
+        const clearAllPolling = () => {
+            activePollingIntervals.forEach((intervalId) => {
+                clearInterval(intervalId);
+            });
+            activePollingIntervals.clear();
+        };
+
+        const startPollingForTest = (testRunId) => {
+            // Clear any existing polling for this test
+            if (activePollingIntervals.has(testRunId)) {
+                clearInterval(activePollingIntervals.get(testRunId));
+                console.log(`Cleared existing polling for test ${testRunId}`);
+            }
+
+            const intervalId = setInterval(async () => {
+                // Skip polling if tab is not active
+                if (!isTabActive) {
+                    console.log(`Skipping poll for test ${testRunId} - tab inactive`);
+                    return;
+                }
+
+                // Check if test still exists and is running
+                const currentTests = getBuiltTests();
+                const testToUpdate = currentTests.find(t => t.runId == testRunId);
+
+                if (!testToUpdate) {
+                    clearInterval(intervalId);
+                    activePollingIntervals.delete(testRunId);
+                    console.log(`Test ${testRunId} no longer found, stopping polling`);
+                    return;
+                }
+
+                try {
+                    console.log(`Polling test ${testRunId}...`);
+                    const res = await fetch(`/api/tests/results/${testRunId}`);
+                    const data = await res.json();
+
+                    console.log(`Poll result for test ${testRunId}:`, data.status);
+
+                    if (data.status === 'finished' || data.status === 'not_found') {
+                        clearInterval(intervalId);
+                        activePollingIntervals.delete(testRunId);
+
+                        const newStatus = (data.status === 'finished' && data.results && data.results.length > 0 && data.results.every(r => r.status === 'success')) ? 'pass' : 'fail';
+                        const message = data.status === 'finished' ? `Test finished with status: ${newStatus.toUpperCase()}` : 'Test results not found, marked as failed.';
+                        const messageType = newStatus === 'pass' ? 'success' : 'error';
+
+                        console.log(`Test ${testRunId} completed with status: ${newStatus}`);
+
+                        // Use synchronized update
+                        await updateTestInStorage(testRunId, (test) => {
+                            test.status = newStatus;
+                            delete test.runId;
+                            return test;
+                        });
+
+                        // Only show toast if tab is active
+                        if (isTabActive) {
+                            showToast(message, messageType);
+                        }
+                    }
+                } catch (err) {
+                    console.error(`Error polling for test ${testRunId}:`, err);
+                    clearInterval(intervalId);
+                    activePollingIntervals.delete(testRunId);
+
+                    // Use synchronized update for error case
+                    await updateTestInStorage(testRunId, (test) => {
+                        test.status = 'fail';
+                        delete test.runId;
+                        return test;
+                    });
+
+                    // Only show toast if tab is active
+                    if (isTabActive) {
+                        showToast('Error polling for results.', 'error');
+                    }
+                }
+            }, 2000);
+
+            activePollingIntervals.set(testRunId, intervalId);
+            console.log(`Started polling for test ${testRunId}, active intervals: ${activePollingIntervals.size}`);
+        };
+
         const renderTestCards = () => {
+            // Always use fresh data when rendering
+            const currentTests = getBuiltTests();
+            builtTests = currentTests; // Update local reference
+
+            console.log(`Rendering ${currentTests.length} test cards`);
+
             container.innerHTML = '';
-            builtTests.forEach((test, index) => {
+            currentTests.forEach((test, index) => {
                 // Get status from test object (default to 'pending' if not set)
                 const status = test.status || 'pending';
                 // Generate a unique test ID if not already present
@@ -523,6 +723,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
         renderTestCards();
 
+        // Resume polling for any running tests
+        resumePollingForRunningTests();
+
         container.addEventListener('click', async (e) => {
             const runButton = e.target.closest('.run-test-btn');
             const cancelButton = e.target.closest('.cancel-test-btn');
@@ -558,10 +761,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (button.disabled) return; // Prevent double clicks
 
                 const index = button.dataset.index;
-                const test = builtTests[index];
+                // Always get fresh data
+                const currentTests = getBuiltTests();
+                const test = currentTests[index];
                 const card = button.closest('.test-card');
                 const testId = card.dataset.testId;
-                const testToUpdate = builtTests.find(t => t.id === testId);
+                const testToUpdate = currentTests.find(t => t.id === testId);
                 const statusBadge = card.querySelector('.test-status-badge');
 
                 // --- UI Update to "Starting" state ---
@@ -573,7 +778,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 if (testToUpdate) {
                     testToUpdate.status = 'running';
-                    sessionStorage.setItem('builtTests', JSON.stringify(builtTests));
+                    sessionStorage.setItem('builtTests', JSON.stringify(currentTests));
+                    builtTests = currentTests; // Update local reference
                 }
 
                 showToast('Submitting test for execution...', 'info');
@@ -588,24 +794,32 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     if (data.testRunId) {
                         // --- Test Started Successfully ---
+                        console.log(`Test started with runId: ${data.testRunId}`);
+
+                        // Update the test with the runId directly
                         if (testToUpdate) {
                             testToUpdate.runId = data.testRunId;
-                            sessionStorage.setItem('builtTests', JSON.stringify(builtTests));
+                            testToUpdate.status = 'running';
+                            sessionStorage.setItem('builtTests', JSON.stringify(currentTests));
+                            builtTests = currentTests; // Update local reference
                         }
-                        // Now transform the button into a real "Cancel" button
+
+                        // Transform the button into a real "Cancel" button
                         button.className = 'cancel-test-btn';
                         button.innerHTML = '<i class="fas fa-ban"></i> Cancel Test';
                         button.dataset.testid = data.testRunId; // Set the correct ID for cancellation
                         button.disabled = false; // Re-enable
 
-                        pollForResults(data.testRunId);
+                        // Start polling for this test
+                        startPollingForTest(data.testRunId);
                     } else {
                         // --- Test Failed to Start ---
                         showToast('Error starting test: ' + (data.message || JSON.stringify(data)), 'error');
                         if (testToUpdate) {
                             testToUpdate.status = 'pending';
                             delete testToUpdate.runId;
-                            sessionStorage.setItem('builtTests', JSON.stringify(builtTests));
+                            sessionStorage.setItem('builtTests', JSON.stringify(currentTests));
+                            builtTests = currentTests; // Update local reference
                             renderTestCards(); // Re-render to fix the card state
                         }
                     }
@@ -615,7 +829,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (testToUpdate) {
                         testToUpdate.status = 'pending';
                         delete testToUpdate.runId;
-                        sessionStorage.setItem('builtTests', JSON.stringify(builtTests));
+                        sessionStorage.setItem('builtTests', JSON.stringify(currentTests));
+                        builtTests = currentTests; // Update local reference
                         renderTestCards(); // Re-render to fix the card state
                     }
                 }
@@ -636,13 +851,19 @@ document.addEventListener('DOMContentLoaded', function () {
                     const data = await res.json();
                     if (data.cancelled) {
                         showToast('Test cancelled successfully.', 'warning');
-                        const testToUpdate = builtTests.find(t => t.runId == testRunId);
-                        if (testToUpdate) {
-                            testToUpdate.status = 'cancelled';
-                            delete testToUpdate.runId;
-                            sessionStorage.setItem('builtTests', JSON.stringify(builtTests));
-                            renderTestCards();
+
+                        // Stop polling for this test
+                        if (activePollingIntervals.has(parseInt(testRunId))) {
+                            clearInterval(activePollingIntervals.get(parseInt(testRunId)));
+                            activePollingIntervals.delete(parseInt(testRunId));
                         }
+
+                        // Use synchronized update
+                        await updateTestInStorage(parseInt(testRunId), (test) => {
+                            test.status = 'cancelled';
+                            delete test.runId;
+                            return test;
+                        });
                     } else {
                         showToast('Failed to cancel test. It might have already completed.', 'error');
                         renderTestCards();
@@ -654,54 +875,22 @@ document.addEventListener('DOMContentLoaded', function () {
             } else if (deleteButton) {
                 const button = deleteButton;
                 const index = button.dataset.index;
-                builtTests.splice(index, 1);
-                sessionStorage.setItem('builtTests', JSON.stringify(builtTests));
+                // Always get fresh data
+                const currentTests = getBuiltTests();
+                const testToDelete = currentTests[index];
+
+                // Stop polling if this test is running
+                if (testToDelete && testToDelete.runId && activePollingIntervals.has(testToDelete.runId)) {
+                    clearInterval(activePollingIntervals.get(testToDelete.runId));
+                    activePollingIntervals.delete(testToDelete.runId);
+                }
+
+                currentTests.splice(index, 1);
+                sessionStorage.setItem('builtTests', JSON.stringify(currentTests));
+                builtTests = currentTests; // Update local reference
                 renderTestCards();
             }
         });
-
-        const pollForResults = (testRunId) => {
-            const interval = setInterval(async () => {
-                const currentTests = JSON.parse(sessionStorage.getItem('builtTests') || '[]');
-                const testToUpdate = currentTests.find(t => t.runId == testRunId);
-
-                if (!testToUpdate) {
-                    clearInterval(interval);
-                    return;
-                }
-
-                try {
-                    const res = await fetch(`/api/tests/results/${testRunId}`);
-                    const data = await res.json();
-                    if (data.status === 'finished' || data.status === 'not_found') {
-                        clearInterval(interval);
-
-                        const newStatus = (data.status === 'finished' && data.results && data.results.length > 0 && data.results.every(r => r.status === 'success')) ? 'pass' : 'fail';
-                        const message = data.status === 'finished' ? `Test finished with status: ${newStatus.toUpperCase()}` : 'Test results not found, marked as failed.';
-                        const messageType = newStatus === 'pass' ? 'success' : 'error';
-                        showToast(message, messageType);
-
-                        if (testToUpdate) {
-                            testToUpdate.status = newStatus;
-                            delete testToUpdate.runId;
-                            sessionStorage.setItem('builtTests', JSON.stringify(currentTests));
-                            builtTests = currentTests;
-                            renderTestCards();
-                        }
-                    }
-                } catch (err) {
-                    clearInterval(interval);
-                    showToast('Error polling for results.', 'error');
-                    if (testToUpdate) {
-                        testToUpdate.status = 'fail';
-                        delete testToUpdate.runId;
-                        sessionStorage.setItem('builtTests', JSON.stringify(currentTests));
-                        builtTests = currentTests;
-                        renderTestCards();
-                    }
-                }
-            }, 2000);
-        };
     };
 
     if (document.getElementById('test-runner-container')) {
@@ -998,5 +1187,121 @@ document.addEventListener('DOMContentLoaded', function () {
     if (document.getElementById('create-data-btn')) {
         requestIdleCallback(initTestDataPage);
     }
-});
 
+    // Reports page initialization
+    const initReportsPage = () => {
+        console.log('Initializing Reports page...');
+
+        // Fallback showToast function in case main function is not available
+        if (typeof showToast !== 'function') {
+            window.showToast = function(message, type = 'info') {
+                alert(message); // Simple fallback
+                console.log(`Toast: ${message} (${type})`);
+            };
+        }
+
+        // Page size change function
+        window.changePageSize = function(newSize) {
+            const currentUrl = new URL(window.location.href);
+            currentUrl.searchParams.set('size', newSize);
+            currentUrl.searchParams.set('page', '0'); // Reset to first page
+            window.location.href = currentUrl.toString();
+        };
+
+        // Delete report functionality
+        const deleteModal = document.getElementById('delete-report-modal');
+        const deleteReportName = document.getElementById('delete-report-name');
+        const confirmDeleteBtn = document.getElementById('confirm-delete-report-btn');
+        const cancelDeleteBtn = document.getElementById('cancel-delete-report-btn');
+        const modalClose = deleteModal ? deleteModal.querySelector('.modal-close') : null;
+
+        if (!deleteModal || !deleteReportName || !confirmDeleteBtn || !cancelDeleteBtn || !modalClose) {
+            console.error('Reports page: Required modal elements not found');
+            return;
+        }
+
+        let currentReportId = null;
+
+        // Handle delete button clicks
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.delete-report-btn')) {
+                const button = e.target.closest('.delete-report-btn');
+                currentReportId = button.dataset.reportId;
+                const reportName = button.dataset.reportName;
+
+                console.log('Delete button clicked for report:', currentReportId, reportName);
+
+                deleteReportName.textContent = reportName;
+                deleteModal.style.display = 'flex';
+            }
+        });
+
+        // Handle modal close
+        function closeModal() {
+            deleteModal.style.display = 'none';
+            currentReportId = null;
+        }
+
+        modalClose.addEventListener('click', closeModal);
+        cancelDeleteBtn.addEventListener('click', closeModal);
+
+        // Handle confirm delete
+        confirmDeleteBtn.addEventListener('click', async function() {
+            if (!currentReportId) {
+                console.error('No report ID selected for deletion');
+                return;
+            }
+
+            console.log('Confirming delete for report ID:', currentReportId);
+
+            try {
+                confirmDeleteBtn.disabled = true;
+                confirmDeleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+
+                console.log('Sending DELETE request to:', `/api/reports/${currentReportId}`);
+
+                const response = await fetch(`/api/reports/${currentReportId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                console.log('Response status:', response.status);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                console.log('Delete response:', result);
+
+                if (result.success) {
+                    showToast('Report deleted successfully', 'success');
+                    // Reload the page to update the table
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                } else {
+                    showToast('Failed to delete report: ' + (result.message || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                console.error('Error deleting report:', error);
+                showToast('Error deleting report: ' + error.message, 'error');
+            } finally {
+                confirmDeleteBtn.disabled = false;
+                confirmDeleteBtn.innerHTML = '<i class="fas fa-trash"></i> Delete Report';
+                closeModal();
+            }
+        });
+
+        // Debug: Log if delete buttons are found
+        const deleteButtons = document.querySelectorAll('.delete-report-btn');
+        console.log('Found delete buttons:', deleteButtons.length);
+    };
+
+    // Initialize Reports page if elements are present
+    if (document.getElementById('delete-report-modal') || document.querySelector('.delete-report-btn')) {
+        requestIdleCallback(initReportsPage);
+    }
+});

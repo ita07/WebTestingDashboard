@@ -3,33 +3,206 @@
 <head>
     <meta charset="UTF-8">
     <title>Reports</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="/main.js"></script>
 </head>
 <body>
     <!-- Content fragment that will be inserted into layout.html -->
     <div th:fragment="content">
-        <h2><i class="fas fa-clipboard-list"></i> Test Reports</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Report ID</th>
-                    <th>Timestamp</th>
-                    <th>Status</th>
-                    <th>Execution Time</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody id="reports-table-body" th:each="report : ${reports}">
-                <tr>
-                    <td th:text="${report.id}">Report ID</td>
-                    <td th:text="${#temporals.format(report.generatedAt, 'dd-MM-yyyy HH:mm:ss')}">Timestamp</td>
-                    <td th:text="${report.testRun.status}">Status</td>
-                    <td th:text="${executionTimes[report.id] >= 3600 ? #numbers.formatDecimal(executionTimes[report.id] / 3600, 1, 2) + ' h' : (executionTimes[report.id] >= 60 ? #numbers.formatDecimal(executionTimes[report.id] / 60, 1, 2) + ' min' : #numbers.formatDecimal(executionTimes[report.id], 1, 2) + ' sec')}">Execution Time</td>
-                    <td>
-                        <a th:href="@{${report.path}}" class="screenshot-link" target="_blank">View Report</a>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
+        <div class="reports-header">
+            <h2><i class="fas fa-clipboard-list"></i> Test Reports</h2>
+            <p>View and manage your test execution reports with detailed results and analytics.</p>
+
+            <!-- Reports Statistics -->
+            <div class="reports-stats" th:if="${totalElements > 0}">
+                <div class="stat-card">
+                    <i class="fas fa-file-alt"></i>
+                    <div>
+                        <span class="stat-number" th:text="${totalElements}">0</span>
+                        <span class="stat-label">Total Reports</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-calendar-day"></i>
+                    <div>
+                        <span class="stat-number" th:text="${currentPage + 1}">1</span>
+                        <span class="stat-label">Current Page</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-layer-group"></i>
+                    <div>
+                        <span class="stat-number" th:text="${totalPages}">1</span>
+                        <span class="stat-label">Total Pages</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reports Table -->
+        <div class="reports-container">
+            <div id="loading-reports" class="text-center" style="display: none;">
+                <i class="fas fa-spinner fa-spin"></i> Loading reports...
+            </div>
+
+            <div id="no-reports" th:if="${totalElements == 0}" class="text-center">
+                <div class="empty-state">
+                    <i class="fas fa-clipboard-list empty-icon"></i>
+                    <h3>No Reports Found</h3>
+                    <p class="text-muted">Run some tests to generate reports that will appear here.</p>
+                    <a th:href="@{/test-runner}" class="btn btn-primary">
+                        <i class="fas fa-play"></i> Go to Test Runner
+                    </a>
+                </div>
+            </div>
+
+            <div id="reports-table-container" th:if="${totalElements > 0}">
+                <table id="reports-table">
+                    <thead>
+                        <tr>
+                            <th>Report ID</th>
+                            <th>Generated</th>
+                            <th>Test Status</th>
+                            <th>Execution Time</th>
+                            <th>Browser</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reports-table-body">
+                        <tr th:each="report : ${reports}">
+                            <td>
+                                <span class="report-id" th:text="${report.id}">1</span>
+                            </td>
+                            <td>
+                                <span class="report-date" th:text="${#temporals.format(report.generatedAt, 'dd-MM-yyyy HH:mm:ss')}">01-01-2024 00:00:00</span>
+                            </td>
+                            <td>
+                                <span th:if="${report.testRun != null}"
+                                      th:class="'status-badge status-' + ${report.testRun.status}"
+                                      th:text="${report.testRun.status}">Unknown</span>
+                                <span th:unless="${report.testRun != null}" class="status-badge status-unknown">Unknown</span>
+                            </td>
+                            <td>
+                                <span th:if="${executionTimes[report.id] != null}"
+                                      th:text="${executionTimes[report.id] >= 3600 ? #numbers.formatDecimal(executionTimes[report.id] / 3600, 1, 2) + ' h' : (executionTimes[report.id] >= 60 ? #numbers.formatDecimal(executionTimes[report.id] / 60, 1, 2) + ' min' : #numbers.formatDecimal(executionTimes[report.id], 1, 2) + ' sec')}">0.00 sec</span>
+                                <span th:unless="${executionTimes[report.id] != null}">N/A</span>
+                            </td>
+                            <td>
+                                <span th:if="${report.testRun != null}" class="browser-badge">
+                                    <i th:class="'fab fa-' + ${report.testRun.browser}"></i>
+                                    <span th:text="${#strings.capitalize(report.testRun.browser)}">Chrome</span>
+                                </span>
+                                <span th:unless="${report.testRun != null}">Unknown</span>
+                            </td>
+                            <td class="actions-cell">
+                                <a th:if="${report.path != null}"
+                                   th:href="@{${report.path}}"
+                                   class="action-btn btn-view"
+                                   target="_blank"
+                                   title="View Report">
+                                    <i class="fas fa-external-link-alt"></i> View
+                                </a>
+                                <button class="action-btn btn-delete delete-report-btn"
+                                        th:data-report-id="${report.id}"
+                                        th:data-report-name="'Report #' + ${report.id}"
+                                        title="Delete Report">
+                                    <i class="fas fa-trash"></i> Delete
+                                </button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <!-- Pagination -->
+                <div class="pagination-container" th:if="${totalPages > 1}">
+                    <div class="pagination-info">
+                        <span>Showing <strong th:text="${(currentPage * pageSize) + 1}">1</strong> to
+                              <strong th:text="${#numbers.formatInteger((currentPage * pageSize) + #lists.size(reports), 1, 'COMMA')}">10</strong>
+                              of <strong th:text="${#numbers.formatInteger(totalElements, 1, 'COMMA')}">100</strong> reports</span>
+                    </div>
+
+                    <div class="pagination-controls">
+                        <!-- First Page -->
+                        <a th:href="@{/reports(page=0, size=${pageSize})}"
+                           th:class="'pagination-btn' + (${currentPage == 0} ? ' disabled' : '')"
+                           th:if="${currentPage > 0}">
+                            <i class="fas fa-angle-double-left"></i> First
+                        </a>
+
+                        <!-- Previous Page -->
+                        <a th:href="@{/reports(page=${currentPage - 1}, size=${pageSize})}"
+                           th:class="'pagination-btn' + (${!hasPrevious} ? ' disabled' : '')"
+                           th:if="${hasPrevious}">
+                            <i class="fas fa-angle-left"></i> Previous
+                        </a>
+
+                        <!-- Page Numbers -->
+                        <div class="pagination-numbers">
+                            <span th:each="pageNum : ${#numbers.sequence(T(java.lang.Math).max(0, currentPage - 2), T(java.lang.Math).min(totalPages - 1, currentPage + 2))}">
+                                <a th:href="@{/reports(page=${pageNum}, size=${pageSize})}"
+                                   th:class="'pagination-number' + (${pageNum == currentPage} ? ' active' : '')"
+                                   th:text="${pageNum + 1}">1</a>
+                            </span>
+                        </div>
+
+                        <!-- Next Page -->
+                        <a th:href="@{/reports(page=${currentPage + 1}, size=${pageSize})}"
+                           th:class="'pagination-btn' + (${!hasNext} ? ' disabled' : '')"
+                           th:if="${hasNext}">
+                            Next <i class="fas fa-angle-right"></i>
+                        </a>
+
+                        <!-- Last Page -->
+                        <a th:href="@{/reports(page=${totalPages - 1}, size=${pageSize})}"
+                           th:class="'pagination-btn' + (${currentPage == totalPages - 1} ? ' disabled' : '')"
+                           th:if="${currentPage < totalPages - 1}">
+                            Last <i class="fas fa-angle-double-right"></i>
+                        </a>
+                    </div>
+
+                    <!-- Page Size Selector -->
+                    <div class="page-size-selector">
+                        <label for="page-size">Show:</label>
+                        <select id="page-size" onchange="changePageSize(this.value)">
+                            <option value="5" th:selected="${pageSize == 5}">5</option>
+                            <option value="10" th:selected="${pageSize == 10}">10</option>
+                            <option value="20" th:selected="${pageSize == 20}">20</option>
+                            <option value="50" th:selected="${pageSize == 50}">50</option>
+                        </select>
+                        <span>per page</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Delete Confirmation Modal -->
+        <div id="delete-report-modal" class="modal-overlay" style="display: none;">
+            <div class="modal-container modal-small">
+                <div class="modal-header">
+                    <h3>Confirm Deletion</h3>
+                    <button type="button" class="modal-close">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="delete-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <div>
+                            <p>Are you sure you want to delete "<strong id="delete-report-name"></strong>"?</p>
+                            <p class="text-warning">This will permanently delete both the report file and database record. This action cannot be undone.</p>
+                        </div>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" id="cancel-delete-report-btn">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                        <button type="button" class="btn btn-danger" id="confirm-delete-report-btn">
+                            <i class="fas fa-trash"></i> Delete Report
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </body>
 </html>
