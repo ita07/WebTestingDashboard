@@ -1002,6 +1002,53 @@ tr:hover {
     align-items: start;
 }
 
+/* Popup for displaying JSON */
+.json-popup {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    z-index: 1000;
+    width: 80%;
+    max-width: 600px;
+    overflow-y: auto;
+    max-height: 80%;
+}
+
+.json-popup .popup-content {
+    position: relative;
+}
+
+.json-popup .popup-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #d32f2f;
+}
+
+.json-popup h3 {
+    margin-top: 0;
+    font-size: 1.2rem;
+    color: #2c3e50;
+}
+
+.json-popup pre {
+    background: #f8f9fa;
+    padding: 10px;
+    border-radius: 5px;
+    overflow-x: auto;
+    font-size: 0.9rem;
+    color: #2c3e50;
+}
+
 /* Responsive Design */
 @media (max-width: 1200px) {
     .dashboard-container {

@@ -99,7 +99,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                     return response.text();
                 })
-                .then(data => {
+                .then( data => {
                     showToast(data || successMessage, "success");
                 })
                 .catch(error => {
@@ -527,6 +527,31 @@ document.addEventListener('DOMContentLoaded', function () {
             const runButton = e.target.closest('.run-test-btn');
             const cancelButton = e.target.closest('.cancel-test-btn');
             const deleteButton = e.target.closest('.delete-test-btn');
+            const actionsCount = e.target.closest('.test-card-stat');
+
+            if (actionsCount && actionsCount.querySelector('i.fa-tasks')) {
+                const card = actionsCount.closest('.test-card');
+                const testId = card.dataset.testId;
+                const test = builtTests.find(t => t.id === testId);
+
+                if (test && test.actions) {
+                    const popup = document.createElement('div');
+                    popup.className = 'json-popup';
+                    popup.innerHTML = `
+                        <div class="popup-content">
+                            <button class="popup-close">&times;</button>
+                            <h3>Actions JSON</h3>
+                            <pre>${JSON.stringify(test.actions, null, 2)}</pre>
+                        </div>
+                    `;
+
+                    document.body.appendChild(popup);
+
+                    popup.querySelector('.popup-close').addEventListener('click', () => {
+                        document.body.removeChild(popup);
+                    });
+                }
+            }
 
             if (runButton) {
                 const button = runButton;
